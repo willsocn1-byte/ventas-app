@@ -7,11 +7,13 @@ import { useRouter } from 'next/navigation';
 export default function DetallesPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
+  const [eliminando, setEliminando] = useState(false);
+  const [ventaAEliminar, setVentaAEliminar] = useState(null);
   const [estadisticas, setEstadisticas] = useState({
     porTipo: [],
     porTamanio: [],
     matrizTipoTamanio: [],
-    matrizMetodosPago: [], // Nueva matriz de métodos de pago
+    matrizMetodosPago: [],
     totalGeneral: 0,
     totalVasos: 0,
     totalEfectivo: 0,
@@ -95,10 +97,7 @@ export default function DetallesPage() {
       const estadisticasPorTipo = {};
       const estadisticasPorTamanio = {};
       
-      // Matriz: [tipo][tamanio] = { vasos, dinero }
       const matriz = {};
-      
-      // Matriz para métodos de pago: [metodo][tipo][tamanio] = { vasos, dinero }
       const matrizPagos = {};
       
       tiposCerveza.forEach(tipo => {
@@ -117,7 +116,6 @@ export default function DetallesPage() {
         });
       });
       
-      // Inicializar matriz de pagos
       metodosPago.forEach(metodo => {
         matrizPagos[metodo] = {};
         tiposCerveza.forEach(tipo => {
@@ -147,7 +145,6 @@ export default function DetallesPage() {
       let totalEfectivo = 0;
       let totalTransferencia = 0;
       
-      // Procesar cada venta
       data.forEach(venta => {
         const tipo = venta.tipo_cerveza;
         const cantidad = venta.cantidad;
@@ -155,7 +152,6 @@ export default function DetallesPage() {
         const metodo = venta.metodo_pago;
         const total = venta.total || (venta.cantidad * venta.precio_unitario);
         
-        // Procesar matriz principal
         if (matriz[tipo] && matriz[tipo][tamanio]) {
           matriz[tipo][tamanio].vasos += cantidad;
           matriz[tipo][tamanio].dinero += total;
@@ -163,19 +159,16 @@ export default function DetallesPage() {
           estadisticasPorTipo[tipo].totalDinero += total;
         }
         
-        // Procesar matriz de métodos de pago
         if (matrizPagos[metodo] && matrizPagos[metodo][tipo] && matrizPagos[metodo][tipo][tamanio]) {
           matrizPagos[metodo][tipo][tamanio].vasos += cantidad;
           matrizPagos[metodo][tipo][tamanio].dinero += total;
         }
         
-        // Actualizar estadísticas por tamaño
         if (estadisticasPorTamanio[tamanio]) {
           estadisticasPorTamanio[tamanio].totalVasos += cantidad;
           estadisticasPorTamanio[tamanio].totalDinero += total;
         }
         
-        // Totales por método de pago
         if (metodo === 'efectivo') {
           totalEfectivo += total;
         } else if (metodo === 'transferencia') {
@@ -186,7 +179,6 @@ export default function DetallesPage() {
         totalGeneral += total;
       });
       
-      // Convertir a arrays
       const porTipo = Object.values(estadisticasPorTipo)
         .filter(t => t.totalVasos > 0)
         .sort((a, b) => b.totalDinero - a.totalDinero);
@@ -195,7 +187,6 @@ export default function DetallesPage() {
         .filter(t => t.totalVasos > 0)
         .sort((a, b) => a.tamanio - b.tamanio);
       
-      // Crear matriz para visualización
       const matrizTipoTamanio = tiposCerveza.map(tipo => ({
         tipo: tipo,
         color: coloresPorTipo[tipo],
@@ -209,7 +200,6 @@ export default function DetallesPage() {
         totalDinero: estadisticasPorTipo[tipo]?.totalDinero || 0
       })).filter(tipo => tipo.totalVasos > 0);
       
-      // Crear matriz de métodos de pago para visualización
       const matrizMetodosPago = metodosPago.map(metodo => ({
         metodo: metodo,
         nombre: nombresMetodos[metodo],
@@ -230,7 +220,6 @@ export default function DetallesPage() {
         totalGeneralDinero: 0
       }));
       
-      // Calcular totales por método
       matrizMetodosPago.forEach(metodo => {
         metodo.totalGeneralVasos = metodo.tipos.reduce((sum, tipo) => sum + tipo.totalVasos, 0);
         metodo.totalGeneralDinero = metodo.tipos.reduce((sum, tipo) => sum + tipo.totalDinero, 0);
@@ -268,6 +257,37 @@ export default function DetallesPage() {
     setFechaFin('');
     setFiltroActivo(false);
     cargarEstadisticas();
+  };
+
+  // Función para eliminar una venta
+  const eliminarVenta = async (id) => {
+    if (!confirm('¿Estás seguro de que deseas eliminar esta venta? Esta acción no se puede deshacer.')) {
+      return;
+    }
+    
+    setEliminando(true);
+    setVentaAEliminar(id);
+    
+    try {
+      const { error } = await supabase
+        .from('ventas')
+        .delete()
+        .eq('id', id);
+      
+      if (error) throw error;
+      
+      alert('✅ Venta eliminada correctamente');
+      
+      // Recargar estadísticas
+      cargarEstadisticas();
+      
+    } catch (error) {
+      console.error('Error al eliminar:', error);
+      alert(`❌ Error al eliminar: ${error.message}`);
+    } finally {
+      setEliminando(false);
+      setVentaAEliminar(null);
+    }
   };
 
   const formatearFecha = (fechaUTC) => {
@@ -432,7 +452,7 @@ export default function DetallesPage() {
         </div>
       </div>
 
-      {/* NUEVA MATRIZ: Ventas por Método de Pago */}
+      {/* MATRIZ: Ventas por Método de Pago */}
       <div style={styles.card}>
         <h2 style={styles.subtitle}>💳 Ventas por Método de Pago</h2>
         
@@ -533,9 +553,18 @@ export default function DetallesPage() {
         )}
       </div>
 
-      {/* Últimas Ventas */}
+      {/* Últimas Ventas con opción de eliminar */}
       <div style={styles.card}>
-        <h2 style={styles.subtitle}>🕐 Últimas Ventas</h2>
+        <div style={styles.ventasHeader}>
+          <h2 style={styles.subtitle}>🕐 Últimas Ventas</h2>
+          <button 
+            onClick={() => cargarEstadisticas()} 
+            style={styles.refreshButton}
+            title="Actualizar lista"
+          >
+            🔄 Actualizar
+          </button>
+        </div>
         <div style={styles.tableContainer}>
           <table style={styles.table}>
             <thead>
@@ -547,6 +576,7 @@ export default function DetallesPage() {
                 <th>Precio Unit.</th>
                 <th>Total</th>
                 <th>Método Pago</th>
+                <th style={styles.accionesHeader}>Acciones</th>
               </tr>
             </thead>
             <tbody>
@@ -559,11 +589,23 @@ export default function DetallesPage() {
                   <td>${venta.precio_unitario.toFixed(2)}</td>
                   <td style={styles.dineroCell}>${(venta.total || venta.cantidad * venta.precio_unitario).toFixed(2)}</td>
                   <td>{venta.metodo_pago === 'efectivo' ? 'Efectivo' : 'Transferencia'}</td>
+                  <td style={styles.accionesCell}>
+                    <button
+                      onClick={() => eliminarVenta(venta.id)}
+                      disabled={eliminando && ventaAEliminar === venta.id}
+                      style={styles.eliminarButton}
+                      title="Eliminar venta"
+                      onMouseEnter={(e) => e.target.style.backgroundColor = '#c82333'}
+                      onMouseLeave={(e) => e.target.style.backgroundColor = '#dc3545'}
+                    >
+                      {eliminando && ventaAEliminar === venta.id ? '⏳' : '🗑️ Eliminar'}
+                    </button>
+                  </td>
                 </tr>
               ))}
               {ventasRecientes.length === 0 && (
                 <tr>
-                  <td colSpan="7" style={styles.noData}>No hay ventas registradas</td>
+                  <td colSpan="8" style={styles.noData}>No hay ventas registradas</td>
                 </tr>
               )}
             </tbody>
@@ -853,6 +895,45 @@ const styles = {
     textAlign: 'center',
     padding: '40px',
     color: '#999'
+  },
+  ventasHeader: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: '20px',
+    flexWrap: 'wrap',
+    gap: '10px'
+  },
+  refreshButton: {
+    padding: '8px 16px',
+    backgroundColor: '#2196F3',
+    color: 'white',
+    border: 'none',
+    borderRadius: '6px',
+    cursor: 'pointer',
+    fontSize: '14px',
+    fontWeight: 'bold',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '5px'
+  },
+  accionesHeader: {
+    textAlign: 'center',
+    width: '100px'
+  },
+  accionesCell: {
+    textAlign: 'center'
+  },
+  eliminarButton: {
+    padding: '6px 12px',
+    backgroundColor: '#dc3545',
+    color: 'white',
+    border: 'none',
+    borderRadius: '6px',
+    cursor: 'pointer',
+    fontSize: '12px',
+    fontWeight: 'bold',
+    transition: 'background-color 0.3s'
   }
 };
 
