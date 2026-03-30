@@ -74,23 +74,11 @@ export default function DetallesPage() {
     checkAuth();
   }, []);
 
-  // Función para convertir datetime local de Ecuador a UTC para la consulta
-  const fechaLocalEcuadorToUTC = (datetimeStr) => {
-    if (!datetimeStr) return null;
-    // datetimeStr viene como "2024-01-15T14:30" (hora de Ecuador)
-    const fecha = new Date(datetimeStr);
-    // Restar 5 horas para convertir a UTC (Ecuador es UTC-5)
-    const fechaUTC = new Date(fecha.getTime() - (5 * 60 * 60 * 1000));
-    return fechaUTC.toISOString();
-  };
-
-  // Función para formatear fecha UTC a hora de Ecuador para mostrar
-  const formatearFecha = (fechaUTC) => {
-    if (!fechaUTC) return '';
-    const fecha = new Date(fechaUTC);
-    // Sumar 5 horas para mostrar en hora de Ecuador
-    const fechaEcuador = new Date(fecha.getTime() + (5 * 60 * 60 * 1000));
-    return fechaEcuador.toLocaleString('es-EC', {
+  // Función para formatear fecha (directamente, sin conversiones)
+  const formatearFecha = (fechaStr) => {
+    if (!fechaStr) return '';
+    const fecha = new Date(fechaStr);
+    return fecha.toLocaleString('es-EC', {
       year: 'numeric',
       month: '2-digit',
       day: '2-digit',
@@ -99,7 +87,7 @@ export default function DetallesPage() {
     });
   };
 
-  // Función para formatear la fecha seleccionada para mostrar en el filtro
+  // Función para formatear la fecha seleccionada para mostrar
   const formatearFechaSeleccionada = (datetimeStr) => {
     if (!datetimeStr) return '';
     const fecha = new Date(datetimeStr);
@@ -119,27 +107,17 @@ export default function DetallesPage() {
         .from('ventas')
         .select('*');
       
-      // Aplicar filtros de fecha y hora
+      // Aplicar filtros de fecha y hora - SIN CONVERSIÓN
       if (filtroActivo && fechaInicio && fechaFin) {
-        const inicioUTC = fechaLocalEcuadorToUTC(fechaInicio);
-        const finUTC = fechaLocalEcuadorToUTC(fechaFin);
-        
-        console.log('Filtro activo con hora:');
-        console.log('  Fecha inicio seleccionada (Ecuador):', fechaInicio);
-        console.log('  Fecha inicio UTC:', inicioUTC);
-        console.log('  Fecha fin seleccionada (Ecuador):', fechaFin);
-        console.log('  Fecha fin UTC:', finUTC);
-        
+        // Las fechas ya están guardadas en hora de Ecuador, se filtran directamente
         query = query
-          .gte('fecha', inicioUTC)
-          .lte('fecha', finUTC);
+          .gte('fecha', fechaInicio)
+          .lte('fecha', fechaFin);
       }
       
       const { data, error } = await query.order('fecha', { ascending: false });
       
       if (error) throw error;
-      
-      console.log('Ventas encontradas:', data.length);
       
       // Inicializar estructuras de datos
       const estadisticasPorTipo = {};
@@ -387,7 +365,7 @@ export default function DetallesPage() {
         </div>
         {filtroActivo && (
           <div style={styles.filtroInfo}>
-            🔍 Mostrando ventas desde {formatearFechaSeleccionada(fechaInicio)} hasta {formatearFechaSeleccionada(fechaFin)} (hora Ecuador)
+            🔍 Mostrando ventas desde {formatearFechaSeleccionada(fechaInicio)} hasta {formatearFechaSeleccionada(fechaFin)}
           </div>
         )}
       </div>
@@ -522,7 +500,7 @@ export default function DetallesPage() {
                     <tr key={tipo.tipo}>
                       <td style={{ ...styles.tipoCell, borderLeftColor: tipo.color }}>
                         <span style={styles.tipoNombre}>{tipo.tipo}</span>
-                       </td>
+                      </td>
                       {tipo.tamanios.map((tamanio) => (
                         <td key={tamanio.ml} style={styles.cellTamanio}>
                           {tamanio.vasos > 0 ? (
