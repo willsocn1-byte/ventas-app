@@ -1,4 +1,4 @@
-'use client';
+ 'use client';
 
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
@@ -74,30 +74,16 @@ export default function DetallesPage() {
     checkAuth();
   }, []);
 
-  // Función para formatear fecha (directamente, sin conversiones)
-  const formatearFecha = (fechaStr) => {
-    if (!fechaStr) return '';
-    const fecha = new Date(fechaStr);
-    return fecha.toLocaleString('es-EC', {
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-  };
-
-  // Función para formatear la fecha seleccionada para mostrar
-  const formatearFechaSeleccionada = (datetimeStr) => {
-    if (!datetimeStr) return '';
-    const fecha = new Date(datetimeStr);
-    return fecha.toLocaleString('es-EC', {
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
+  // Función para convertir datetime local a UTC
+  const fechaLocalToUTC = (datetimeStr) => {
+    if (!datetimeStr) return null;
+    // datetimeStr viene como "2024-01-15T14:30"
+    const [datePart, timePart] = datetimeStr.split('T');
+    const [year, month, day] = datePart.split('-');
+    const [hour, minute] = timePart.split(':');
+    
+    // Crear fecha UTC con la hora especificada
+    return new Date(Date.UTC(parseInt(year), parseInt(month) - 1, parseInt(day), parseInt(hour), parseInt(minute), 0)).toISOString();
   };
 
   const cargarEstadisticas = async () => {
@@ -107,17 +93,27 @@ export default function DetallesPage() {
         .from('ventas')
         .select('*');
       
-      // Aplicar filtros de fecha y hora - SIN CONVERSIÓN
+      // Aplicar filtros de fecha y hora
       if (filtroActivo && fechaInicio && fechaFin) {
-        // Las fechas ya están guardadas en hora de Ecuador, se filtran directamente
+        const inicioUTC = fechaLocalToUTC(fechaInicio);
+        const finUTC = fechaLocalToUTC(fechaFin);
+        
+        console.log('Filtro activo con hora:');
+        console.log('  Fecha inicio seleccionada:', fechaInicio);
+        console.log('  Fecha inicio UTC:', inicioUTC);
+        console.log('  Fecha fin seleccionada:', fechaFin);
+        console.log('  Fecha fin UTC:', finUTC);
+        
         query = query
-          .gte('fecha', fechaInicio)
-          .lte('fecha', fechaFin);
+          .gte('fecha', inicioUTC)
+          .lte('fecha', finUTC);
       }
       
       const { data, error } = await query.order('fecha', { ascending: false });
       
       if (error) throw error;
+      
+      console.log('Ventas encontradas:', data.length);
       
       // Inicializar estructuras de datos
       const estadisticasPorTipo = {};
@@ -316,6 +312,19 @@ export default function DetallesPage() {
     }
   };
 
+  const formatearFecha = (fechaUTC) => {
+    if (!fechaUTC) return '';
+    const fecha = new Date(fechaUTC);
+    return fecha.toLocaleString('es-EC', {
+      timeZone: 'America/Guayaquil',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
+
   if (loading) {
     return (
       <div style={styles.loadingContainer}>
@@ -365,7 +374,7 @@ export default function DetallesPage() {
         </div>
         {filtroActivo && (
           <div style={styles.filtroInfo}>
-            🔍 Mostrando ventas desde {formatearFechaSeleccionada(fechaInicio)} hasta {formatearFechaSeleccionada(fechaFin)}
+            🔍 Mostrando ventas desde {formatearFecha(fechaLocalToUTC(fechaInicio))} hasta {formatearFecha(fechaLocalToUTC(fechaFin))}
           </div>
         )}
       </div>
