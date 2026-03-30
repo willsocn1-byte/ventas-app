@@ -9,9 +9,9 @@ export default function VentasPage() {
   const [user, setUser] = useState(null);
   const [formData, setFormData] = useState({
     tipo_cerveza: '',
-    cantidad_vaso: 350,
-    cantidad: 1,
-    metodo_pago: 'efectivo'
+    cantidad_vaso: '',
+    cantidad: 0,
+    metodo_pago: ''
   });
   
   const [precioUnitario, setPrecioUnitario] = useState(0);
@@ -64,11 +64,37 @@ export default function VentasPage() {
     setTotal(nuevoTotal);
   };
 
-  // Actualizar cantidad y recalcular total
-  const handleCantidadChange = (cantidad) => {
-    setFormData({ ...formData, cantidad });
-    const nuevoTotal = precioUnitario * cantidad;
+  // Aumentar cantidad
+  const aumentarCantidad = () => {
+    const nuevaCantidad = formData.cantidad + 1;
+    setFormData({ ...formData, cantidad: nuevaCantidad });
+    const nuevoTotal = precioUnitario * nuevaCantidad;
     setTotal(nuevoTotal);
+  };
+
+  // Disminuir cantidad (mínimo 1)
+  const disminuirCantidad = () => {
+    if (formData.cantidad > 1) {
+      const nuevaCantidad = formData.cantidad - 1;
+      setFormData({ ...formData, cantidad: nuevaCantidad });
+      const nuevoTotal = precioUnitario * nuevaCantidad;
+      setTotal(nuevoTotal);
+    }
+  };
+
+  // Limpiar todo el formulario
+  const limpiarFormulario = () => {
+    if (confirm('¿Estás seguro de que deseas limpiar todo el formulario? Se perderán los datos no guardados.')) {
+      setFormData({
+        tipo_cerveza: '',
+        cantidad_vaso: '',
+        cantidad: 0,
+        metodo_pago: ''
+      });
+      setPrecioUnitario(0);
+      setTotal(0);
+      setMensaje({ tipo: '', texto: '' });
+    }
   };
 
   // Enviar formulario
@@ -96,13 +122,12 @@ export default function VentasPage() {
     }
 
     const getFechaEcuador = () => {
-    const ahora = new Date();
-    // Convertir a UTC-5 (Ecuador)
-    const offsetEcuador = -5 * 60; // -5 horas en minutos
-    const fechaUTC = ahora.getTime() + (ahora.getTimezoneOffset() * 60000);
-    const fechaEcuador = new Date(fechaUTC + (offsetEcuador * 60000));
-    return fechaEcuador.toISOString();
-  };
+      const ahora = new Date();
+      const offsetEcuador = -5 * 60;
+      const fechaUTC = ahora.getTime() + (ahora.getTimezoneOffset() * 60000);
+      const fechaEcuador = new Date(fechaUTC + (offsetEcuador * 60000));
+      return fechaEcuador.toISOString();
+    };
 
     try {
       const ventaData = {
@@ -131,9 +156,9 @@ export default function VentasPage() {
       
       setFormData({
         tipo_cerveza: '',
-        cantidad_vaso: 350,
-        cantidad: 1,
-        metodo_pago: 'efectivo'
+        cantidad_vaso: '',
+        cantidad: 0,
+        metodo_pago: ''
       });
       setPrecioUnitario(0);
       setTotal(0);
@@ -153,14 +178,23 @@ export default function VentasPage() {
     <div style={styles.container}>
       <div style={styles.card}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-         <h1 style={styles.title}>🍺 Sistema de Ventas</h1>
-          <button 
-            onClick={() => router.push('/detalles')} 
-            style={styles.detallesButton}
-          >
-           📊 Ver Detalles
-          </button>
-       </div>
+          <h1 style={styles.title}>🍺 Sistema de Ventas</h1>
+          <div style={{ display: 'flex', gap: '10px' }}>
+            <button 
+              onClick={limpiarFormulario} 
+              style={styles.limpiarButton}
+              title="Limpiar todo el formulario"
+            >
+              🗑️ Limpiar
+            </button>
+            <button 
+              onClick={() => router.push('/detalles')} 
+              style={styles.detallesButton}
+            >
+              📊 Ver Detalles
+            </button>
+          </div>
+        </div>
         
         {user && (
           <div style={styles.userInfo}>
@@ -223,14 +257,27 @@ export default function VentasPage() {
 
           <div style={styles.formGroup}>
             <label style={styles.label}>🔢 Cantidad de unidades</label>
-            <input
-              type="number"
-              min="1"
-              value={formData.cantidad}
-              onChange={(e) => handleCantidadChange(parseInt(e.target.value) || 1)}
-              style={styles.input}
-              required
-            />
+            <div style={styles.cantidadContainer}>
+              <button
+                type="button"
+                onClick={disminuirCantidad}
+                style={styles.cantidadButton}
+                disabled={formData.cantidad <= 1}
+              >
+                ➖
+              </button>
+              <div style={styles.cantidadDisplay}>
+                <span style={styles.cantidadNumero}>{formData.cantidad}</span>
+                <span style={styles.cantidadTexto}>unidades</span>
+              </div>
+              <button
+                type="button"
+                onClick={aumentarCantidad}
+                style={styles.cantidadButton}
+              >
+                ➕
+              </button>
+            </div>
           </div>
 
           {precioUnitario > 0 && (
@@ -266,13 +313,15 @@ export default function VentasPage() {
             </div>
           </div>
 
-          <button 
-            type="submit" 
-            style={styles.submitButton}
-            disabled={loading || !user}
-          >
-            {loading ? 'Registrando...' : '✅ Registrar Venta'}
-          </button>
+          <div style={styles.botonesContainer}>
+            <button 
+              type="submit" 
+              style={styles.submitButton}
+              disabled={loading || !user}
+            >
+              {loading ? 'Registrando...' : '✅ Registrar Venta'}
+            </button>
+          </div>
         </form>
       </div>
     </div>
@@ -299,7 +348,7 @@ const styles = {
   title: {
     textAlign: 'center',
     color: '#333',
-    marginBottom: '20px',
+    marginBottom: 0,
     fontSize: '28px'
   },
   userInfo: {
@@ -321,14 +370,6 @@ const styles = {
     color: '#555',
     fontSize: '16px'
   },
-  input: {
-    width: '100%',
-    padding: '12px',
-    border: '1px solid #ddd',
-    borderRadius: '8px',
-    fontSize: '16px',
-    boxSizing: 'border-box'
-  },
   buttonGroup: {
     display: 'flex',
     gap: '10px',
@@ -343,6 +384,45 @@ const styles = {
     cursor: 'pointer',
     transition: 'all 0.3s',
     fontWeight: '500'
+  },
+  cantidadContainer: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '20px',
+    backgroundColor: '#f8f9fa',
+    padding: '15px',
+    borderRadius: '12px',
+    border: '1px solid #e0e0e0'
+  },
+  cantidadButton: {
+    width: '48px',
+    height: '48px',
+    fontSize: '24px',
+    fontWeight: 'bold',
+    backgroundColor: '#2196F3',
+    color: 'white',
+    border: 'none',
+    borderRadius: '12px',
+    cursor: 'pointer',
+    transition: 'all 0.3s',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  cantidadDisplay: {
+    textAlign: 'center',
+    minWidth: '100px'
+  },
+  cantidadNumero: {
+    fontSize: '36px',
+    fontWeight: 'bold',
+    color: '#333',
+    display: 'block'
+  },
+  cantidadTexto: {
+    fontSize: '14px',
+    color: '#666'
   },
   precioBox: {
     backgroundColor: '#e8f5e9',
@@ -368,8 +448,12 @@ const styles = {
     color: '#1b5e20',
     marginLeft: '10px'
   },
+  botonesContainer: {
+    display: 'flex',
+    gap: '10px'
+  },
   submitButton: {
-    width: '100%',
+    flex: 1,
     padding: '14px',
     backgroundColor: '#4CAF50',
     color: 'white',
@@ -380,6 +464,26 @@ const styles = {
     cursor: 'pointer',
     transition: 'background-color 0.3s'
   },
+  detallesButton: {
+    padding: '10px 20px',
+    backgroundColor: '#2196F3',
+    color: 'white',
+    border: 'none',
+    borderRadius: '8px',
+    cursor: 'pointer',
+    fontSize: '14px',
+    fontWeight: 'bold'
+  },
+  limpiarButton: {
+    padding: '10px 20px',
+    backgroundColor: '#dc3545',
+    color: 'white',
+    border: 'none',
+    borderRadius: '8px',
+    cursor: 'pointer',
+    fontSize: '14px',
+    fontWeight: 'bold'
+  },
   mensaje: {
     padding: '12px',
     borderRadius: '8px',
@@ -387,4 +491,4 @@ const styles = {
     textAlign: 'center',
     border: '1px solid'
   }
-  };
+};
