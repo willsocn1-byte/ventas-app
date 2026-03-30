@@ -74,6 +74,18 @@ export default function DetallesPage() {
     checkAuth();
   }, []);
 
+  // Función para convertir datetime local a UTC
+  const fechaLocalToUTC = (datetimeStr) => {
+    if (!datetimeStr) return null;
+    // datetimeStr viene como "2024-01-15T14:30"
+    const [datePart, timePart] = datetimeStr.split('T');
+    const [year, month, day] = datePart.split('-');
+    const [hour, minute] = timePart.split(':');
+    
+    // Crear fecha UTC con la hora especificada
+    return new Date(Date.UTC(parseInt(year), parseInt(month) - 1, parseInt(day), parseInt(hour), parseInt(minute), 0)).toISOString();
+  };
+
   const cargarEstadisticas = async () => {
     setLoading(true);
     try {
@@ -81,17 +93,27 @@ export default function DetallesPage() {
         .from('ventas')
         .select('*');
       
+      // Aplicar filtros de fecha y hora
       if (filtroActivo && fechaInicio && fechaFin) {
-        const fechaInicioUTC = new Date(fechaInicio).toISOString();
-        const fechaFinUTC = new Date(fechaFin).toISOString();
+        const inicioUTC = fechaLocalToUTC(fechaInicio);
+        const finUTC = fechaLocalToUTC(fechaFin);
+        
+        console.log('Filtro activo con hora:');
+        console.log('  Fecha inicio seleccionada:', fechaInicio);
+        console.log('  Fecha inicio UTC:', inicioUTC);
+        console.log('  Fecha fin seleccionada:', fechaFin);
+        console.log('  Fecha fin UTC:', finUTC);
+        
         query = query
-          .gte('fecha', fechaInicioUTC)
-          .lte('fecha', fechaFinUTC);
+          .gte('fecha', inicioUTC)
+          .lte('fecha', finUTC);
       }
       
       const { data, error } = await query.order('fecha', { ascending: false });
       
       if (error) throw error;
+      
+      console.log('Ventas encontradas:', data.length);
       
       // Inicializar estructuras de datos
       const estadisticasPorTipo = {};
@@ -236,7 +258,7 @@ export default function DetallesPage() {
         totalTransferencia
       });
       
-      setVentasRecientes(data.slice(0, 10));
+      setVentasRecientes(data);
       
     } catch (error) {
       console.error('Error:', error);
@@ -291,6 +313,7 @@ export default function DetallesPage() {
   };
 
   const formatearFecha = (fechaUTC) => {
+    if (!fechaUTC) return '';
     const fecha = new Date(fechaUTC);
     return fecha.toLocaleString('es-EC', {
       timeZone: 'America/Guayaquil',
@@ -319,22 +342,22 @@ export default function DetallesPage() {
         </button>
       </div>
 
-      {/* Filtros de fecha */}
+      {/* Filtros de fecha y hora */}
       <div style={styles.filtrosContainer}>
         <div style={styles.filtrosGroup}>
           <div style={styles.filtroItem}>
-            <label>Desde:</label>
+            <label>Desde (fecha y hora):</label>
             <input
-              type="date"
+              type="datetime-local"
               value={fechaInicio}
               onChange={(e) => setFechaInicio(e.target.value)}
               style={styles.filtroInput}
             />
           </div>
           <div style={styles.filtroItem}>
-            <label>Hasta:</label>
+            <label>Hasta (fecha y hora):</label>
             <input
-              type="date"
+              type="datetime-local"
               value={fechaFin}
               onChange={(e) => setFechaFin(e.target.value)}
               style={styles.filtroInput}
@@ -349,6 +372,11 @@ export default function DetallesPage() {
             </button>
           )}
         </div>
+        {filtroActivo && (
+          <div style={styles.filtroInfo}>
+            🔍 Mostrando ventas desde {formatearFecha(fechaLocalToUTC(fechaInicio))} hasta {formatearFecha(fechaLocalToUTC(fechaFin))}
+          </div>
+        )}
       </div>
 
       {/* Tarjetas de resumen */}
@@ -689,6 +717,15 @@ const styles = {
     fontSize: '14px',
     height: '36px'
   },
+  filtroInfo: {
+    marginTop: '15px',
+    padding: '10px',
+    backgroundColor: '#e3f2fd',
+    borderRadius: '8px',
+    fontSize: '14px',
+    color: '#1976d2',
+    textAlign: 'center'
+  },
   resumenContainer: {
     display: 'grid',
     gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
@@ -949,6 +986,13 @@ if (typeof document !== 'undefined') {
     }
     .tableMatriz tr:hover td {
       background-color: #f8f9fa;
+    }
+    input[type="datetime-local"] {
+      padding: 8px 12px;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      font-size: 14px;
+      font-family: inherit;
     }
   `;
   document.head.appendChild(styleSheet);
