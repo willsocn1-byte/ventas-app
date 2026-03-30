@@ -178,7 +178,7 @@ export default function VentasPage() {
     <div style={styles.container}>
       <div style={styles.card}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-          <h1 style={styles.title}>🍺 Sistema de Ventas</h1>
+          <h1 style={styles.title}>🍺 BEER 🍺</h1>
           <div style={{ display: 'flex', gap: '10px' }}>
             <button 
               onClick={limpiarFormulario} 
