@@ -7,19 +7,20 @@ import { useRouter } from 'next/navigation';
 export default function VentasPage() {
   const router = useRouter();
   const [user, setUser] = useState(null);
-  const [formData, setFormData] = useState({
+  const [carrito, setCarrito] = useState([]);
+  const [itemActual, setItemActual] = useState({
     tipo_cerveza: '',
     cantidad_vaso: '',
-    cantidad: 0,
-    metodo_pago: ''
+    cantidad: 1,
+    precio_unitario: 0
   });
   
-  const [precioUnitario, setPrecioUnitario] = useState(0);
-  const [total, setTotal] = useState(0);
+  const [totalCarrito, setTotalCarrito] = useState(0);
+  const [metodoPago, setMetodoPago] = useState('efectivo');
   const [loading, setLoading] = useState(false);
   const [mensaje, setMensaje] = useState({ tipo: '', texto: '' });
 
-  // Verificar autenticación y usuario
+  // Verificar autenticación
   useEffect(() => {
     const checkAuth = async () => {
       const { data: { session } } = await supabase.auth.getSession();
@@ -35,6 +36,12 @@ export default function VentasPage() {
     };
     checkAuth();
   }, [router]);
+
+  // Calcular total del carrito
+  useEffect(() => {
+    const nuevoTotal = carrito.reduce((sum, item) => sum + (item.precio_unitario * item.cantidad), 0);
+    setTotalCarrito(nuevoTotal);
+  }, [carrito]);
 
   // Tipos de cerveza
   const tiposCerveza = [
@@ -58,68 +65,110 @@ export default function VentasPage() {
 
   // Actualizar precio unitario basado en cantidad de vaso
   const handleVasoChange = (ml, precio) => {
-    setPrecioUnitario(precio);
-    setFormData({ ...formData, cantidad_vaso: ml });
-    const nuevoTotal = precio * formData.cantidad;
-    setTotal(nuevoTotal);
+    setItemActual({
+      ...itemActual,
+      cantidad_vaso: ml,
+      precio_unitario: precio
+    });
   };
 
-  // Aumentar cantidad
+  // Aumentar cantidad del item actual
   const aumentarCantidad = () => {
-    const nuevaCantidad = formData.cantidad + 1;
-    setFormData({ ...formData, cantidad: nuevaCantidad });
-    const nuevoTotal = precioUnitario * nuevaCantidad;
-    setTotal(nuevoTotal);
+    setItemActual({
+      ...itemActual,
+      cantidad: itemActual.cantidad + 1
+    });
   };
 
-  // Disminuir cantidad (mínimo 1)
+  // Disminuir cantidad del item actual
   const disminuirCantidad = () => {
-    if (formData.cantidad > 1) {
-      const nuevaCantidad = formData.cantidad - 1;
-      setFormData({ ...formData, cantidad: nuevaCantidad });
-      const nuevoTotal = precioUnitario * nuevaCantidad;
-      setTotal(nuevoTotal);
-    }
-  };
-
-  // Limpiar todo el formulario
-  const limpiarFormulario = () => {
-    if (confirm('¿Estás seguro de que deseas limpiar todo el formulario? Se perderán los datos no guardados.')) {
-      setFormData({
-        tipo_cerveza: '',
-        cantidad_vaso: '',
-        cantidad: 0,
-        metodo_pago: ''
+    if (itemActual.cantidad > 1) {
+      setItemActual({
+        ...itemActual,
+        cantidad: itemActual.cantidad - 1
       });
-      setPrecioUnitario(0);
-      setTotal(0);
-      setMensaje({ tipo: '', texto: '' });
     }
   };
 
-  // Enviar formulario
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  // Agregar item al carrito
+  const agregarAlCarrito = () => {
+    if (!itemActual.tipo_cerveza) {
+      setMensaje({ tipo: 'error', texto: '❌ Por favor selecciona un tipo de cerveza' });
+      return;
+    }
+
+    if (!itemActual.cantidad_vaso) {
+      setMensaje({ tipo: 'error', texto: '❌ Por favor selecciona el tamaño del vaso' });
+      return;
+    }
+
+    const nuevoItem = {
+      id: Date.now(),
+      tipo_cerveza: itemActual.tipo_cerveza,
+      tipo_nombre: tiposCerveza.find(t => t.id === itemActual.tipo_cerveza)?.nombre,
+      cantidad_vaso: itemActual.cantidad_vaso,
+      cantidad: itemActual.cantidad,
+      precio_unitario: itemActual.precio_unitario,
+      subtotal: itemActual.precio_unitario * itemActual.cantidad
+    };
+
+    setCarrito([...carrito, nuevoItem]);
+    setMensaje({ tipo: 'exito', texto: '✅ Producto agregado al carrito' });
     
+    // Limpiar selección actual pero mantener el tamaño por defecto
+    setItemActual({
+      tipo_cerveza: '',
+      cantidad_vaso: '',
+      cantidad: 1,
+      precio_unitario: 0
+    });
+    
+    // Limpiar mensaje después de 2 segundos
+    setTimeout(() => {
+      if (mensaje.tipo === 'exito') setMensaje({ tipo: '', texto: '' });
+    }, 2000);
+  };
+
+  // Eliminar item del carrito
+  const eliminarDelCarrito = (id) => {
+    setCarrito(carrito.filter(item => item.id !== id));
+    setMensaje({ tipo: 'exito', texto: '🗑️ Producto eliminado del carrito' });
+    setTimeout(() => {
+      if (mensaje.tipo === 'exito') setMensaje({ tipo: '', texto: '' });
+    }, 1500);
+  };
+
+  // Vaciar carrito completo
+  const vaciarCarrito = () => {
+    if (carrito.length === 0) return;
+    if (confirm('¿Estás seguro de que deseas vaciar todo el carrito?')) {
+      setCarrito([]);
+      setMensaje({ tipo: 'exito', texto: '🗑️ Carrito vaciado' });
+      setTimeout(() => {
+        if (mensaje.tipo === 'exito') setMensaje({ tipo: '', texto: '' });
+      }, 1500);
+    }
+  };
+
+  // Registrar venta completa
+  const registrarVenta = async () => {
     if (!user) {
       setMensaje({ tipo: 'error', texto: '❌ Debes iniciar sesión' });
       return;
     }
 
+    if (carrito.length === 0) {
+      setMensaje({ tipo: 'error', texto: '❌ El carrito está vacío. Agrega productos primero.' });
+      return;
+    }
+
+    if (!metodoPago) {
+      setMensaje({ tipo: 'error', texto: '❌ Por favor selecciona un método de pago' });
+      return;
+    }
+
     setLoading(true);
     setMensaje({ tipo: '', texto: '' });
-
-    if (!formData.tipo_cerveza) {
-      setMensaje({ tipo: 'error', texto: '❌ Por favor selecciona un tipo de cerveza' });
-      setLoading(false);
-      return;
-    }
-
-    if (!formData.cantidad_vaso) {
-      setMensaje({ tipo: 'error', texto: '❌ Por favor selecciona el tamaño del vaso' });
-      setLoading(false);
-      return;
-    }
 
     const getFechaEcuador = () => {
       const ahora = new Date();
@@ -130,38 +179,34 @@ export default function VentasPage() {
     };
 
     try {
-      const ventaData = {
+      // Crear un registro por cada producto en el carrito
+      const ventasData = carrito.map(item => ({
         user_id: user.id,
-        tipo_cerveza: formData.tipo_cerveza,
-        cantidad_vaso: formData.cantidad_vaso,
-        cantidad: formData.cantidad,
-        precio_unitario: precioUnitario,
-        metodo_pago: formData.metodo_pago,
+        tipo_cerveza: item.tipo_cerveza,
+        cantidad_vaso: item.cantidad_vaso,
+        cantidad: item.cantidad,
+        precio_unitario: item.precio_unitario,
+        metodo_pago: metodoPago,
         fecha: getFechaEcuador(),
-        cantidad_total_negra: formData.tipo_cerveza === 'Negra' ? formData.cantidad : 0,
-        cantidad_total_rubia: formData.tipo_cerveza === 'Rubia' ? formData.cantidad : 0,
-        cantidad_total_roja: formData.tipo_cerveza === 'Roja' ? formData.cantidad : 0
-      };
+        cantidad_total_negra: item.tipo_cerveza === 'Negra' ? item.cantidad : 0,
+        cantidad_total_rubia: item.tipo_cerveza === 'Rubia' ? item.cantidad : 0,
+        cantidad_total_roja: item.tipo_cerveza === 'Roja' ? item.cantidad : 0
+      }));
 
       const { error } = await supabase
         .from('ventas')
-        .insert([ventaData]);
+        .insert(ventasData);
 
       if (error) throw error;
 
       setMensaje({ 
         tipo: 'exito', 
-        texto: `✅ Venta registrada exitosamente! Total: $${total.toFixed(2)} USD` 
+        texto: `✅ Venta registrada exitosamente! Total: $${totalCarrito.toFixed(2)} USD` 
       });
       
-      setFormData({
-        tipo_cerveza: '',
-        cantidad_vaso: '',
-        cantidad: 0,
-        metodo_pago: ''
-      });
-      setPrecioUnitario(0);
-      setTotal(0);
+      // Limpiar carrito
+      setCarrito([]);
+      setMetodoPago('efectivo');
 
     } catch (error) {
       console.error('Error:', error);
@@ -178,15 +223,8 @@ export default function VentasPage() {
     <div style={styles.container}>
       <div style={styles.card}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-          <h1 style={styles.title}>🍺 BEER 🍺</h1>
+          <h1 style={styles.title}>🍺 SHITAKE´N BEER 🍺</h1>
           <div style={{ display: 'flex', gap: '10px' }}>
-            <button 
-              onClick={limpiarFormulario} 
-              style={styles.limpiarButton}
-              title="Limpiar todo el formulario"
-            >
-              🗑️ Limpiar
-            </button>
             <button 
               onClick={() => router.push('/detalles')} 
               style={styles.detallesButton}
@@ -213,7 +251,10 @@ export default function VentasPage() {
           </div>
         )}
 
-        <form onSubmit={handleSubmit}>
+        {/* Sección para agregar productos */}
+        <div style={styles.seccionAgregar}>
+          <h3 style={styles.seccionTitulo}>➕ Seleciona tu cerveza</h3>
+          
           <div style={styles.formGroup}>
             <label style={styles.label}>🍺 Tipo de Cerveza</label>
             <div style={styles.buttonGroup}>
@@ -221,11 +262,11 @@ export default function VentasPage() {
                 <button
                   key={tipo.id}
                   type="button"
-                  onClick={() => setFormData({ ...formData, tipo_cerveza: tipo.id })}
+                  onClick={() => setItemActual({ ...itemActual, tipo_cerveza: tipo.id })}
                   style={{
                     ...styles.optionButton,
-                    backgroundColor: formData.tipo_cerveza === tipo.id ? tipo.color : '#f0f0f0',
-                    color: formData.tipo_cerveza === tipo.id ? 'white' : '#333',
+                    backgroundColor: itemActual.tipo_cerveza === tipo.id ? tipo.color : '#f0f0f0',
+                    color: itemActual.tipo_cerveza === tipo.id ? 'white' : '#333',
                     borderColor: tipo.color
                   }}
                 >
@@ -245,8 +286,8 @@ export default function VentasPage() {
                   onClick={() => handleVasoChange(opcion.ml, opcion.precio)}
                   style={{
                     ...styles.optionButton,
-                    backgroundColor: formData.cantidad_vaso === opcion.ml ? '#4CAF50' : '#f0f0f0',
-                    color: formData.cantidad_vaso === opcion.ml ? 'white' : '#333'
+                    backgroundColor: itemActual.cantidad_vaso === opcion.ml ? '#4CAF50' : '#f0f0f0',
+                    color: itemActual.cantidad_vaso === opcion.ml ? 'white' : '#333'
                   }}
                 >
                   {opcion.label}
@@ -254,20 +295,39 @@ export default function VentasPage() {
               ))}
             </div>
           </div>
-
+                 {/* Método de Pago */}
+         <div style={styles.formGroup}>
+          <label style={styles.label}>💳 Método de Pago</label>
+          <div style={styles.buttonGroup}>
+            {metodosPago.map((metodo) => (
+              <button
+                key={metodo.id}
+                type="button"
+                onClick={() => setMetodoPago(metodo.id)}
+                style={{
+                  ...styles.optionButton,
+                  backgroundColor: metodoPago === metodo.id ? '#2196F3' : '#f0f0f0',
+                  color: metodoPago === metodo.id ? 'white' : '#333'
+                }}
+              >
+                {metodo.icon} {metodo.nombre}
+              </button>
+            ))}
+          </div>
+        </div>
           <div style={styles.formGroup}>
-            <label style={styles.label}>🔢 Cantidad de unidades</label>
+            <label style={styles.label}>🔢 Cantidad</label>
             <div style={styles.cantidadContainer}>
               <button
                 type="button"
                 onClick={disminuirCantidad}
                 style={styles.cantidadButton}
-                disabled={formData.cantidad <= 1}
+                disabled={itemActual.cantidad <= 1}
               >
                 ➖
               </button>
               <div style={styles.cantidadDisplay}>
-                <span style={styles.cantidadNumero}>{formData.cantidad}</span>
+                <span style={styles.cantidadNumero}>{itemActual.cantidad}</span>
                 <span style={styles.cantidadTexto}>unidades</span>
               </div>
               <button
@@ -280,49 +340,92 @@ export default function VentasPage() {
             </div>
           </div>
 
-          {precioUnitario > 0 && (
-            <div style={styles.precioBox}>
-              <div>
-                <span style={styles.precioLabel}>💰 Precio unitario:</span>
-                <span style={styles.precioValor}>${precioUnitario.toFixed(2)} USD</span>
-              </div>
-              <div style={{ marginTop: '10px' }}>
-                <span style={styles.precioLabel}>💵 Total a pagar:</span>
-                <span style={styles.totalValor}>${total.toFixed(2)} USD</span>
-              </div>
+          {itemActual.precio_unitario > 0 && (
+            <div style={styles.precioItemBox}>
+              <span>💰 Precio unitario: ${itemActual.precio_unitario.toFixed(2)}</span>
+              <span style={styles.subtotalItem}>Subtotal: ${(itemActual.precio_unitario * itemActual.cantidad).toFixed(2)}</span>
             </div>
           )}
 
-          <div style={styles.formGroup}>
-            <label style={styles.label}>💳 Método de Pago</label>
-            <div style={styles.buttonGroup}>
-              {metodosPago.map((metodo) => (
-                <button
-                  key={metodo.id}
-                  type="button"
-                  onClick={() => setFormData({ ...formData, metodo_pago: metodo.id })}
-                  style={{
-                    ...styles.optionButton,
-                    backgroundColor: formData.metodo_pago === metodo.id ? '#2196F3' : '#f0f0f0',
-                    color: formData.metodo_pago === metodo.id ? 'white' : '#333'
-                  }}
-                >
-                  {metodo.icon} {metodo.nombre}
-                </button>
-              ))}
-            </div>
-          </div>
+       
 
-          <div style={styles.botonesContainer}>
-            <button 
-              type="submit" 
-              style={styles.submitButton}
-              disabled={loading || !user}
-            >
-              {loading ? 'Registrando...' : '✅ Registrar Venta'}
-            </button>
+          <button 
+            onClick={agregarAlCarrito} 
+            style={styles.agregarButton}
+          >
+            ➕ Agregar 🍺
+          </button>
+        </div>
+
+        {/* Carrito de compras */}
+        <div style={styles.seccionCarrito}>
+          <div style={styles.carritoHeader}>
+            <h3 style={styles.seccionTitulo}>🛒 Carrito Cervecero 🍺</h3>
+            {carrito.length > 0 && (
+              <button onClick={vaciarCarrito} style={styles.vaciarButton}>
+                🗑️ Vaciar
+              </button>
+            )}
           </div>
-        </form>
+          
+          {carrito.length === 0 ? (
+            <div style={styles.carritoVacio}>
+              🍺 El carrito está vacío. Agrega la cerveza.
+            </div>
+          ) : (
+            <>
+              <div style={styles.tableContainer}>
+                <table style={styles.carritoTable}>
+                  <thead>
+                    <tr>
+                      <th>Producto</th>
+                      <th>Tamaño</th>
+                      <th>Cantidad</th>
+                      <th>Precio Unit.</th>
+                      <th>Subtotal</th>
+                      <th></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {carrito.map((item) => (
+                      <tr key={item.id}>
+                        <td>{item.tipo_nombre}</td>
+                        <td>{item.cantidad_vaso} ml</td>
+                        <td>{item.cantidad}</td>
+                        <td>${item.precio_unitario.toFixed(2)}</td>
+                        <td style={styles.subtotalCell}>${item.subtotal.toFixed(2)}</td>
+                        <td>
+                          <button
+                            onClick={() => eliminarDelCarrito(item.id)}
+                            style={styles.eliminarItemButton}
+                          >
+                            ❌
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              
+              <div style={styles.totalCarrito}>
+                <span style={styles.totalLabel}>Total del pedido:</span>
+                <span style={styles.totalValor}>${totalCarrito.toFixed(2)} USD</span>
+              </div>
+            </>
+          )}
+        </div>
+
+       
+
+        {/* Botón registrar venta */}
+        <button 
+          onClick={registrarVenta} 
+          style={styles.registrarButton}
+          disabled={loading || carrito.length === 0}
+        >
+          {loading ? 'Registrando...' : `✅ Registrar Venta - Total: $${totalCarrito.toFixed(2)}`}
+        </button>
       </div>
     </div>
   );
@@ -338,12 +441,33 @@ const styles = {
     alignItems: 'center'
   },
   card: {
-    maxWidth: '600px',
+    maxWidth: '800px',
     width: '100%',
-    backgroundColor: 'white',
-    borderRadius: '15px',
-    padding: '30px',
-    boxShadow: '0 4px 6px rgba(0,0,0,0.1)'
+    backgroundColor: 'rgba(255, 255, 255, 0.95)', // 95% opaco
+    border: '1px solid rgba(255, 193, 7, 0.3)', // dorado sutil
+    borderRadius: '20px',
+    padding: '35px',
+    color: '#f5e6c8', // tono crema tipo espuma
+    boxShadow: '0 10px 25px rgba(0,0,0,0.6)',
+
+  // efecto tipo vidrio / premium
+    backdropFilter: 'blur(8px)',
+  
+  // detalle llamativo
+    position: 'relative',
+    overflow: 'hidden',
+
+  // efecto glow sutil dorado
+  '&::before': {
+    content: '""',
+    position: 'absolute',
+    top: '-50%',
+    left: '-50%',
+    width: '200%',
+    height: '200%',
+    background: 'radial-gradient(circle, rgba(255,193,7,0.15), transparent 70%)',
+    transform: 'rotate(25deg)',
+  }
   },
   title: {
     textAlign: 'center',
@@ -360,8 +484,30 @@ const styles = {
     fontSize: '14px',
     color: '#1976d2'
   },
-  formGroup: {
+  seccionAgregar: {
+    backgroundColor: '#f8f9fa',
+    padding: '20px',
+    borderRadius: '12px',
+    marginBottom: '25px',
+    border: '1px solid #e0e0e0'
+  },
+  seccionCarrito: {
     marginBottom: '25px'
+  },
+  seccionTitulo: {
+    fontSize: '18px',
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: '15px'
+  },
+  carritoHeader: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: '15px'
+  },
+  formGroup: {
+    marginBottom: '20px'
   },
   label: {
     display: 'block',
@@ -390,7 +536,7 @@ const styles = {
     alignItems: 'center',
     justifyContent: 'center',
     gap: '20px',
-    backgroundColor: '#f8f9fa',
+    backgroundColor: 'white',
     padding: '15px',
     borderRadius: '12px',
     border: '1px solid #e0e0e0'
@@ -424,36 +570,90 @@ const styles = {
     fontSize: '14px',
     color: '#666'
   },
-  precioBox: {
+  precioItemBox: {
     backgroundColor: '#e8f5e9',
-    padding: '15px',
+    padding: '12px',
     borderRadius: '8px',
-    marginBottom: '25px',
-    border: '1px solid #c8e6c9'
+    marginBottom: '15px',
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center'
   },
-  precioLabel: {
-    fontSize: '16px',
+  subtotalItem: {
     fontWeight: 'bold',
     color: '#2e7d32'
   },
-  precioValor: {
-    fontSize: '20px',
+  agregarButton: {
+    width: '100%',
+    padding: '12px',
+    backgroundColor: '#4CAF50',
+    color: 'white',
+    border: 'none',
+    borderRadius: '8px',
+    fontSize: '16px',
     fontWeight: 'bold',
-    color: '#2e7d32',
-    marginLeft: '10px'
+    cursor: 'pointer',
+    transition: 'background-color 0.3s'
+  },
+  vaciarButton: {
+    padding: '6px 12px',
+    backgroundColor: '#dc3545',
+    color: 'white',
+    border: 'none',
+    borderRadius: '6px',
+    cursor: 'pointer',
+    fontSize: '12px',
+    fontWeight: 'bold'
+  },
+  carritoVacio: {
+    textAlign: 'center',
+    padding: '40px',
+    color: '#999',
+    backgroundColor: '#fafafa',
+    borderRadius: '8px'
+  },
+  tableContainer: {
+    overflowX: 'auto',
+    marginBottom: '15px'
+  },
+  carritoTable: {
+    width: '100%',
+    borderCollapse: 'collapse'
+  },
+  subtotalCell: {
+    fontWeight: 'bold',
+    color: '#2e7d32'
+  },
+  eliminarItemButton: {
+    background: 'none',
+    border: 'none',
+    fontSize: '18px',
+    cursor: 'pointer',
+    padding: '5px',
+    borderRadius: '5px',
+    transition: 'background-color 0.3s'
+  },
+  totalCarrito: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: '15px',
+    backgroundColor: '#e8f5e9',
+    borderRadius: '8px',
+    marginTop: '10px'
+  },
+  totalLabel: {
+    fontSize: '18px',
+    fontWeight: 'bold',
+    color: '#2e7d32'
   },
   totalValor: {
     fontSize: '24px',
     fontWeight: 'bold',
-    color: '#1b5e20',
-    marginLeft: '10px'
+    color: '#1b5e20'
   },
-  botonesContainer: {
-    display: 'flex',
-    gap: '10px'
-  },
-  submitButton: {
-    flex: 1,
+  registrarButton: {
+    width: '100%',
     padding: '14px',
     backgroundColor: '#4CAF50',
     color: 'white',
@@ -462,21 +662,12 @@ const styles = {
     fontSize: '18px',
     fontWeight: 'bold',
     cursor: 'pointer',
-    transition: 'background-color 0.3s'
+    transition: 'background-color 0.3s',
+    marginTop: '10px'
   },
   detallesButton: {
     padding: '10px 20px',
     backgroundColor: '#2196F3',
-    color: 'white',
-    border: 'none',
-    borderRadius: '8px',
-    cursor: 'pointer',
-    fontSize: '14px',
-    fontWeight: 'bold'
-  },
-  limpiarButton: {
-    padding: '10px 20px',
-    backgroundColor: '#dc3545',
     color: 'white',
     border: 'none',
     borderRadius: '8px',
@@ -492,3 +683,32 @@ const styles = {
     border: '1px solid'
   }
 };
+
+// Agregar estilos globales para la tabla
+if (typeof document !== 'undefined') {
+  const styleSheet = document.createElement('style');
+  styleSheet.textContent = `
+    .carritoTable th {
+      background-color: #f8f9fa;
+      padding: 12px;
+      text-align: left;
+      font-weight: bold;
+      border-bottom: 2px solid #dee2e6;
+    }
+    .carritoTable td {
+      padding: 12px;
+      border-bottom: 1px solid #eee;
+    }
+    .carritoTable tr:hover {
+      background-color: #f8f9fa;
+    }
+    .eliminarItemButton:hover {
+      background-color: #ffebee;
+    }
+    .agregarButton:hover, .registrarButton:hover {
+      opacity: 0.9;
+      transform: translateY(-1px);
+    }
+  `;
+  document.head.appendChild(styleSheet);
+}
