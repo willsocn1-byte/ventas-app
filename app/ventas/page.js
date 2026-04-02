@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
+import Image from 'next/image'; // Importa el componente Image
 
 export default function VentasPage() {
   const router = useRouter();
@@ -14,7 +15,7 @@ export default function VentasPage() {
     cantidad: 1,
     precio_unitario: 0
   });
-  
+
   const [totalCarrito, setTotalCarrito] = useState(0);
   const [metodoPago, setMetodoPago] = useState('efectivo');
   const [loading, setLoading] = useState(false);
@@ -28,7 +29,7 @@ export default function VentasPage() {
         router.push('/login');
         return;
       }
-      
+
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
         setUser(user);
@@ -45,7 +46,7 @@ export default function VentasPage() {
 
   // Tipos de cerveza
   const tiposCerveza = [
-    { id: 'Negra', nombre: 'Cerveza Negra', color: '#8B4513' },
+    { id: 'Negra', nombre: 'Cerveza Negra', color: '#270f00' },
     { id: 'Rubia', nombre: 'Cerveza Rubia', color: '#F4A460' },
     { id: 'Roja', nombre: 'Cerveza Roja', color: '#CD5C5C' }
   ];
@@ -114,7 +115,7 @@ export default function VentasPage() {
 
     setCarrito([...carrito, nuevoItem]);
     setMensaje({ tipo: 'exito', texto: '✅ Producto agregado al carrito' });
-    
+
     // Limpiar selección actual pero mantener el tamaño por defecto
     setItemActual({
       tipo_cerveza: '',
@@ -122,7 +123,7 @@ export default function VentasPage() {
       cantidad: 1,
       precio_unitario: 0
     });
-    
+
     // Limpiar mensaje después de 2 segundos
     setTimeout(() => {
       if (mensaje.tipo === 'exito') setMensaje({ tipo: '', texto: '' });
@@ -199,20 +200,20 @@ export default function VentasPage() {
 
       if (error) throw error;
 
-      setMensaje({ 
-        tipo: 'exito', 
-        texto: `✅ Venta registrada exitosamente! Total: $${totalCarrito.toFixed(2)} USD` 
+      setMensaje({
+        tipo: 'exito',
+        texto: `✅ Venta registrada exitosamente! Total: $${totalCarrito.toFixed(2)} USD`
       });
-      
+
       // Limpiar carrito
       setCarrito([]);
       setMetodoPago('efectivo');
 
     } catch (error) {
       console.error('Error:', error);
-      setMensaje({ 
-        tipo: 'error', 
-        texto: `❌ Error al registrar venta: ${error.message}` 
+      setMensaje({
+        tipo: 'error',
+        texto: `❌ Error al registrar venta: ${error.message}`
       });
     } finally {
       setLoading(false);
@@ -220,26 +221,32 @@ export default function VentasPage() {
   };
 
   return (
+
+
     <div style={styles.container}>
       <div style={styles.card}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-          <h1 style={styles.title}>🍺 SHITAKE´N BEER 🍺</h1>
-          <div style={{ display: 'flex', gap: '10px' }}>
-            <button 
-              onClick={() => router.push('/detalles')} 
-              style={styles.detallesButton}
-            >
-              📊 Ver Detalles
-            </button>
+        {/* Header con logo */}
+        <div style={styles.header}>
+          <div style={styles.logoContainer}>
+            <Image
+              src="/logo5.png"
+              alt="Logo Cervecería"
+              width={750}
+              height={150}
+              style={styles.logo}
+              priority
+              loading="eager"
+              suppressHydrationWarning
+            />
           </div>
         </div>
-        
+
         {user && (
           <div style={styles.userInfo}>
             👤 Usuario: {user.email}
           </div>
         )}
-        
+
         {mensaje.texto && (
           <div style={{
             ...styles.mensaje,
@@ -254,7 +261,7 @@ export default function VentasPage() {
         {/* Sección para agregar productos */}
         <div style={styles.seccionAgregar}>
           <h3 style={styles.seccionTitulo}>➕ Seleciona tu cerveza</h3>
-          
+
           <div style={styles.formGroup}>
             <label style={styles.label}>🍺 Tipo de Cerveza</label>
             <div style={styles.buttonGroup}>
@@ -295,26 +302,26 @@ export default function VentasPage() {
               ))}
             </div>
           </div>
-                 {/* Método de Pago */}
-         <div style={styles.formGroup}>
-          <label style={styles.label}>💳 Método de Pago</label>
-          <div style={styles.buttonGroup}>
-            {metodosPago.map((metodo) => (
-              <button
-                key={metodo.id}
-                type="button"
-                onClick={() => setMetodoPago(metodo.id)}
-                style={{
-                  ...styles.optionButton,
-                  backgroundColor: metodoPago === metodo.id ? '#2196F3' : '#f0f0f0',
-                  color: metodoPago === metodo.id ? 'white' : '#333'
-                }}
-              >
-                {metodo.icon} {metodo.nombre}
-              </button>
-            ))}
+          {/* Método de Pago */}
+          <div style={styles.formGroup}>
+            <label style={styles.label}>💳 Método de Pago</label>
+            <div style={styles.buttonGroup}>
+              {metodosPago.map((metodo) => (
+                <button
+                  key={metodo.id}
+                  type="button"
+                  onClick={() => setMetodoPago(metodo.id)}
+                  style={{
+                    ...styles.optionButton,
+                    backgroundColor: metodoPago === metodo.id ? '#2196F3' : '#f0f0f0',
+                    color: metodoPago === metodo.id ? 'white' : '#333'
+                  }}
+                >
+                  {metodo.icon} {metodo.nombre}
+                </button>
+              ))}
+            </div>
           </div>
-        </div>
           <div style={styles.formGroup}>
             <label style={styles.label}>🔢 Cantidad</label>
             <div style={styles.cantidadContainer}>
@@ -341,16 +348,32 @@ export default function VentasPage() {
           </div>
 
           {itemActual.precio_unitario > 0 && (
-            <div style={styles.precioItemBox}>
-              <span>💰 Precio unitario: ${itemActual.precio_unitario.toFixed(2)}</span>
-              <span style={styles.subtotalItem}>Subtotal: ${(itemActual.precio_unitario * itemActual.cantidad).toFixed(2)}</span>
+            <div style={styles.precioItemBoxMinimal}>
+              <div style={styles.precioItemCard}>
+                <div style={styles.precioItemCardHeader}>
+                  <span style={styles.precioItemCardTitle}>📋 Resumen del producto</span>
+                </div>
+                <div style={styles.precioItemCardBody}>
+                  <div style={styles.precioItemRow}>
+                    <div style={styles.precioItemRowLeft}>
+                      <span style={styles.precioItemRowLabel}>Precio unitario</span>
+                      <span style={styles.precioItemRowValue}>${itemActual.precio_unitario.toFixed(2)}</span>
+                    </div>
+                    <div style={styles.precioItemRowCenter}>
+                      <span style={styles.precioItemRowLabel}>Cantidad</span>
+                      <span style={styles.precioItemRowValue}>{itemActual.cantidad}</span>
+                    </div>
+                    <div style={styles.precioItemRowRight}>
+                      <span style={styles.precioItemRowLabel}>Subtotal</span>
+                      <span style={styles.precioItemRowTotal}>${(itemActual.precio_unitario * itemActual.cantidad).toFixed(2)}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
           )}
-
-       
-
-          <button 
-            onClick={agregarAlCarrito} 
+          <button
+            onClick={agregarAlCarrito}
             style={styles.agregarButton}
           >
             ➕ Agregar 🍺
@@ -367,10 +390,10 @@ export default function VentasPage() {
               </button>
             )}
           </div>
-          
+
           {carrito.length === 0 ? (
             <div style={styles.carritoVacio}>
-              🍺 El carrito está vacío. Agrega la cerveza.
+              🍺 El carrito está vacío. Agrega cerveza.
             </div>
           ) : (
             <>
@@ -378,23 +401,23 @@ export default function VentasPage() {
                 <table style={styles.carritoTable}>
                   <thead>
                     <tr>
-                      <th>Producto</th>
-                      <th>Tamaño</th>
-                      <th>Cantidad</th>
-                      <th>Precio Unit.</th>
-                      <th>Subtotal</th>
-                      <th></th>
+                      <th style={styles.thProducto}>Producto</th>
+                      <th style={styles.thTamanio}>Tamaño</th>
+                      <th style={styles.thCantidad}>Cantidad</th>
+                      <th style={styles.thPrecio}>Precio Unit.</th>
+                      <th style={styles.thSubtotal}>Subtotal</th>
+                      <th style={styles.thAcciones}>Acciones</th>
                     </tr>
                   </thead>
                   <tbody>
                     {carrito.map((item) => (
-                      <tr key={item.id}>
-                        <td>{item.tipo_nombre}</td>
-                        <td>{item.cantidad_vaso} ml</td>
-                        <td>{item.cantidad}</td>
-                        <td>${item.precio_unitario.toFixed(2)}</td>
-                        <td style={styles.subtotalCell}>${item.subtotal.toFixed(2)}</td>
-                        <td>
+                      <tr key={item.id} style={styles.trBody}>
+                        <td style={styles.tdProducto}>{item.tipo_nombre}</td>
+                        <td style={styles.tdTamanio}>{item.cantidad_vaso} ml</td>
+                        <td style={styles.tdCantidad}>{item.cantidad}</td>
+                        <td style={styles.tdPrecio}>${item.precio_unitario.toFixed(2)}</td>
+                        <td style={styles.tdSubtotal}>${item.subtotal.toFixed(2)}</td>
+                        <td style={styles.tdAcciones}>
                           <button
                             onClick={() => eliminarDelCarrito(item.id)}
                             style={styles.eliminarItemButton}
@@ -407,7 +430,7 @@ export default function VentasPage() {
                   </tbody>
                 </table>
               </div>
-              
+
               <div style={styles.totalCarrito}>
                 <span style={styles.totalLabel}>Total del pedido:</span>
                 <span style={styles.totalValor}>${totalCarrito.toFixed(2)} USD</span>
@@ -415,26 +438,33 @@ export default function VentasPage() {
             </>
           )}
         </div>
-
-       
-
         {/* Botón registrar venta */}
-        <button 
-          onClick={registrarVenta} 
+        <button
+          onClick={registrarVenta}
           style={styles.registrarButton}
           disabled={loading || carrito.length === 0}
         >
           {loading ? 'Registrando...' : `✅ Registrar Venta - Total: $${totalCarrito.toFixed(2)}`}
         </button>
+        <div style={styles.headerButtons}>
+          <button
+            onClick={() => router.push('/detalles')}
+            style={styles.detallesButton}
+          >
+            📊 Ver Detalles
+          </button>
+        </div>
       </div>
     </div>
+
+
   );
 }
 
 const styles = {
   container: {
     minHeight: '100vh',
-    backgroundColor: '#f5f5f5',
+    backgroundColor: '#ece5e5de',
     padding: '20px',
     display: 'flex',
     justifyContent: 'center',
@@ -450,24 +480,24 @@ const styles = {
     color: '#f5e6c8', // tono crema tipo espuma
     boxShadow: '0 10px 25px rgba(0,0,0,0.6)',
 
-  // efecto tipo vidrio / premium
+    // efecto tipo vidrio / premium
     backdropFilter: 'blur(8px)',
-  
-  // detalle llamativo
+
+    // detalle llamativo
     position: 'relative',
     overflow: 'hidden',
 
-  // efecto glow sutil dorado
-  '&::before': {
-    content: '""',
-    position: 'absolute',
-    top: '-50%',
-    left: '-50%',
-    width: '200%',
-    height: '200%',
-    background: 'radial-gradient(circle, rgba(255,193,7,0.15), transparent 70%)',
-    transform: 'rotate(25deg)',
-  }
+    // efecto glow sutil dorado
+    '&::before': {
+      content: '""',
+      position: 'absolute',
+      top: '-50%',
+      left: '-50%',
+      width: '200%',
+      height: '200%',
+      background: 'radial-gradient(circle, rgba(255,193,7,0.15), transparent 70%)',
+      transform: 'rotate(25deg)',
+    }
   },
   title: {
     textAlign: 'center',
@@ -563,15 +593,15 @@ const styles = {
   cantidadNumero: {
     fontSize: '36px',
     fontWeight: 'bold',
-    color: '#333',
+    color: '#0f0f0f',
     display: 'block'
   },
   cantidadTexto: {
     fontSize: '14px',
-    color: '#666'
+    color: '#0a0a0a'
   },
   precioItemBox: {
-    backgroundColor: '#e8f5e9',
+    backgroundColor: '#fafafa',
     padding: '12px',
     borderRadius: '8px',
     marginBottom: '15px',
@@ -618,7 +648,11 @@ const styles = {
   },
   carritoTable: {
     width: '100%',
-    borderCollapse: 'collapse'
+    borderCollapse: 'collapse',
+    backgroundColor: '#ffffff',
+    borderRadius: '8px',
+    overflow: 'hidden',
+    boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
   },
   subtotalCell: {
     fontWeight: 'bold',
@@ -640,17 +674,22 @@ const styles = {
     padding: '15px',
     backgroundColor: '#e8f5e9',
     borderRadius: '8px',
-    marginTop: '10px'
+    marginTop: '10px',
+    border: '1px solid #4CAF50'
   },
   totalLabel: {
     fontSize: '18px',
     fontWeight: 'bold',
-    color: '#2e7d32'
+    color: '#2e7d32',
+    letterSpacing: '1px'
   },
   totalValor: {
-    fontSize: '24px',
+    fontSize: '28px',
     fontWeight: 'bold',
-    color: '#1b5e20'
+    color: '#0c0c0b',
+    letterSpacing: '1px',
+    padding: '5px 15px',
+    borderRadius: '8px'
   },
   registrarButton: {
     width: '100%',
@@ -666,14 +705,17 @@ const styles = {
     marginTop: '10px'
   },
   detallesButton: {
-    padding: '10px 20px',
+    width: '100%',
+    padding: '14px',
     backgroundColor: '#2196F3',
     color: 'white',
     border: 'none',
     borderRadius: '8px',
+    fontSize: '18px',
+    fontWeight: 'bold',
     cursor: 'pointer',
-    fontSize: '14px',
-    fontWeight: 'bold'
+    transition: 'background-color 0.3s',
+    marginTop: '10px'
   },
   mensaje: {
     padding: '12px',
@@ -681,7 +723,249 @@ const styles = {
     marginBottom: '20px',
     textAlign: 'center',
     border: '1px solid'
-  }
+  },
+  carritoTable: {
+    width: '100%',
+    borderCollapse: 'collapse',
+    backgroundColor: '#ffffff',
+    borderRadius: '8px',
+    overflow: 'hidden',
+    boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
+  },
+
+  // Estilos para los encabezados (th)
+  thProducto: {
+    backgroundColor: '#4CAF50', // Marrón
+    color: '#ffffff', // Blanco
+    padding: '12px',
+    textAlign: 'left',
+    fontWeight: 'bold',
+    fontSize: '14px',
+    borderBottom: '2px solid #4CAF50'
+  },
+
+  thTamanio: {
+    backgroundColor: '#4CAF50',
+    color: '#ffffff',
+    padding: '12px',
+    textAlign: 'left',
+    fontWeight: 'bold',
+    fontSize: '14px',
+    borderBottom: '2px solid #4CAF50'
+  },
+
+  thCantidad: {
+    backgroundColor: '#4CAF50',
+    color: '#ffffff',
+    padding: '12px',
+    textAlign: 'center',
+    fontWeight: 'bold',
+    fontSize: '14px',
+    borderBottom: '2px solid #4CAF50'
+  },
+
+  thPrecio: {
+    backgroundColor: '#4CAF50',
+    color: '#ffffff',
+    padding: '12px',
+    textAlign: 'center',
+    fontWeight: 'bold',
+    fontSize: '14px',
+    borderBottom: '2px solid #4CAF50'
+  },
+
+  thSubtotal: {
+    backgroundColor: '#4CAF50',
+    color: '#ffffff',
+    padding: '12px',
+    textAlign: 'center',
+    fontWeight: 'bold',
+    fontSize: '14px',
+    borderBottom: '2px solid #4CAF50'
+  },
+
+  thAcciones: {
+    backgroundColor: '#4CAF50',
+    color: '#ffffff',
+    padding: '12px',
+    textAlign: 'center',
+    fontWeight: 'bold',
+    fontSize: '14px',
+    borderBottom: '2px solid #4CAF50',
+    width: '60px'
+  },
+
+  // Estilos para las filas del cuerpo (td)
+  trBody: {
+    borderBottom: '1px solid #e0e0e0',
+    transition: 'background-color 0.3s'
+  },
+
+  // Producto - Color marrón
+  tdProducto: {
+    padding: '12px',
+    color: '#2e2d2d', // Marrón
+    fontWeight: 'bold',
+    fontSize: '14px',
+    borderBottom: '1px solid #e0e0e0'
+  },
+
+  // Tamaño - Color gris
+  tdTamanio: {
+    padding: '12px',
+    color: '#2e2d2d', // Gris
+    fontStyle: 'italic',
+    fontSize: '14px',
+    borderBottom: '1px solid #e0e0e0'
+  },
+
+  // Cantidad - Color azul
+  tdCantidad: {
+    padding: '12px',
+    color: '#2196F3', // Azul
+    fontWeight: 'bold',
+    textAlign: 'center',
+    fontSize: '14px',
+    borderBottom: '1px solid #e0e0e0'
+  },
+
+  // Precio Unitario - Color verde
+  tdPrecio: {
+    padding: '12px',
+    color: '#4CAF50', // Verde
+    fontWeight: '500',
+    textAlign: 'center',
+    fontSize: '14px',
+    borderBottom: '1px solid #e0e0e0'
+  },
+
+  // Subtotal - Color naranja con fondo
+  tdSubtotal: {
+    padding: '12px',
+    color: '#2e2d2d', // Naranja
+    fontWeight: 'bold',
+    textAlign: 'center',
+    fontSize: '16px',
+    borderBottom: '1px solid #e0e0e0'
+  },
+
+  // Acciones - Botón eliminar
+  tdAcciones: {
+    padding: '12px',
+    textAlign: 'center',
+    borderBottom: '1px solid #e0e0e0'
+  },
+
+  eliminarItemButton: {
+    background: 'none',
+    border: 'none',
+    fontSize: '18px',
+    cursor: 'pointer',
+    padding: '5px 8px',
+    borderRadius: '5px',
+    transition: 'all 0.3s',
+    color: '#dc3545' // Rojo
+  },
+  precioItemBoxMinimal: {
+    marginBottom: '20px'
+  },
+
+  precioItemCard: {
+    backgroundColor: '#ffffff',
+    borderRadius: '12px',
+    overflow: 'hidden',
+    boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+    border: '1px solid #e0e0e0'
+  },
+
+  precioItemCardHeader: {
+    backgroundColor: '#4CAF50',
+    padding: '10px 15px',
+    textAlign: 'center'
+  },
+
+  precioItemCardTitle: {
+    color: '#ffffff',
+    fontSize: '14px',
+    fontWeight: 'bold',
+    letterSpacing: '1px'
+  },
+
+  precioItemCardBody: {
+    padding: '15px'
+  },
+
+  precioItemRow: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: '15px'
+  },
+
+  precioItemRowLeft: {
+    flex: 1,
+    textAlign: 'center',
+    padding: '10px',
+    backgroundColor: '#f8f9fa',
+    borderRadius: '8px'
+  },
+
+  precioItemRowCenter: {
+    flex: 1,
+    textAlign: 'center',
+    padding: '10px',
+    backgroundColor: '#f8f9fa',
+    borderRadius: '8px'
+  },
+
+  precioItemRowRight: {
+    flex: 1,
+    textAlign: 'center',
+    padding: '10px',
+    backgroundColor: '#e8f5e9',
+    borderRadius: '8px',
+    border: '1px solid #0a0a0a'
+  },
+
+  precioItemRowLabel: {
+    fontSize: '11px',
+    color: '#666',
+    display: 'block',
+    marginBottom: '8px',
+    textTransform: 'uppercase'
+  },
+
+  precioItemRowValue: {
+    fontSize: '18px',
+    color: '#333',
+    fontWeight: 'bold',
+    display: 'block'
+  },
+
+  precioItemRowTotal: {
+    fontSize: '22px',
+    color: '#0f0f0f',
+    fontWeight: 'bold',
+    display: 'block'
+  },
+
+  logoContainer: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '15px',
+    //boxShadow: '0 2px 10px rgba(0,0,0,0.1)'
+  },
+  logo: {
+    borderRadius: '10px',
+    objectFit: 'contain'
+  },
+  title: {
+    textAlign: 'center',
+    color: '#333',
+    marginBottom: 0,
+    fontSize: '28px'
+  },
+
 };
 
 // Agregar estilos globales para la tabla
@@ -689,7 +973,7 @@ if (typeof document !== 'undefined') {
   const styleSheet = document.createElement('style');
   styleSheet.textContent = `
     .carritoTable th {
-      background-color: #f8f9fa;
+      background-color: #030507;
       padding: 12px;
       text-align: left;
       font-weight: bold;
@@ -700,7 +984,7 @@ if (typeof document !== 'undefined') {
       border-bottom: 1px solid #eee;
     }
     .carritoTable tr:hover {
-      background-color: #f8f9fa;
+      background-color: #0b0d0f;
     }
     .eliminarItemButton:hover {
       background-color: #ffebee;
