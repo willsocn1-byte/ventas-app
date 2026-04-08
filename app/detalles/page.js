@@ -3,7 +3,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
-import * as XLSX from 'xlsx';
 
 export default function DetallesPage() {
   const router = useRouter();
@@ -24,7 +23,6 @@ export default function DetallesPage() {
   const [fechaInicio, setFechaInicio] = useState('');
   const [fechaFin, setFechaFin] = useState('');
   const [filtroActivo, setFiltroActivo] = useState(false);
-  const [exportando, setExportando] = useState(false);
   
   // Estados para el modal de comentarios
   const [modalAbierto, setModalAbierto] = useState(false);
@@ -314,171 +312,6 @@ export default function DetallesPage() {
     setModalAbierto(false);
     setVentaSeleccionada(null);
     setComentario('');
-  };
-
-  // Función para exportar a Excel
-  const exportarAExcel = () => {
-    if (ventasRecientes.length === 0) {
-      alert('No hay datos para exportar');
-      return;
-    }
-
-    setExportando(true);
-    
-    try {
-      const datosExportar = ventasRecientes.map(venta => ({
-        'Fecha': formatearFecha(venta.fecha),
-        'Tipo de Cerveza': venta.tipo_cerveza,
-        'Tamaño (ml)': venta.cantidad_vaso,
-        'Cantidad': venta.cantidad,
-        'Precio Unitario (USD)': venta.precio_unitario,
-        'Total (USD)': venta.total || (venta.cantidad * venta.precio_unitario),
-        'Método de Pago': venta.metodo_pago === 'efectivo' ? 'Efectivo' : 'Transferencia',
-        'Comentario': venta.comentario || ''
-      }));
-
-      const resumen = [
-        {},
-        {},
-        { '': 'RESUMEN DE VENTAS' },
-        { '': `Total de Ventas: ${ventasRecientes.length}` },
-        { '': `Total de Vasos: ${estadisticas.totalVasos}` },
-        { '': `Total General: $${estadisticas.totalGeneral.toFixed(2)} USD` },
-        { '': `Total Efectivo: $${estadisticas.totalEfectivo.toFixed(2)} USD` },
-        { '': `Total Transferencia: $${estadisticas.totalTransferencia.toFixed(2)} USD` }
-      ];
-
-      if (filtroActivo) {
-        resumen.unshift(
-          { '': `FILTRO APLICADO:` },
-          { '': `Desde: ${formatearFechaFiltro(fechaInicio)}` },
-          { '': `Hasta: ${formatearFechaFiltro(fechaFin)}` },
-          { '': '' }
-        );
-      }
-
-      const datosCompletos = [...resumen, {}, ...datosExportar];
-      const wb = XLSX.utils.book_new();
-      const ws = XLSX.utils.json_to_sheet(datosCompletos, { skipHeader: false });
-      ws['!cols'] = [{ wch: 25 }, { wch: 20 }, { wch: 15 }, { wch: 12 }, { wch: 18 }, { wch: 15 }, { wch: 18 }, { wch: 40 }];
-      XLSX.utils.book_append_sheet(wb, ws, 'Ventas');
-
-      const now = new Date();
-      const fechaArchivo = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}_${String(now.getHours()).padStart(2, '0')}-${String(now.getMinutes()).padStart(2, '0')}`;
-      const nombreArchivo = filtroActivo 
-        ? `ventas_filtradas_${fechaArchivo}.xlsx`
-        : `ventas_totales_${fechaArchivo}.xlsx`;
-
-      XLSX.writeFile(wb, nombreArchivo);
-      alert(`✅ Exportación completada: ${ventasRecientes.length} ventas exportadas`);
-    } catch (error) {
-      console.error('Error al exportar:', error);
-      alert('❌ Error al exportar los datos: ' + error.message);
-    } finally {
-      setExportando(false);
-    }
-  };
-
-  // Función para exportar estadísticas completas
-  const exportarEstadisticasCompletas = () => {
-    setExportando(true);
-    
-    try {
-      const wb = XLSX.utils.book_new();
-      
-      const ventasDetalle = ventasRecientes.map(venta => ({
-        'Fecha': formatearFecha(venta.fecha),
-        'Tipo de Cerveza': venta.tipo_cerveza,
-        'Tamaño (ml)': venta.cantidad_vaso,
-        'Cantidad': venta.cantidad,
-        'Precio Unitario (USD)': venta.precio_unitario,
-        'Total (USD)': venta.total || (venta.cantidad * venta.precio_unitario),
-        'Método de Pago': venta.metodo_pago === 'efectivo' ? 'Efectivo' : 'Transferencia',
-        'Comentario': venta.comentario || ''
-      }));
-      
-      const wsVentas = XLSX.utils.json_to_sheet(ventasDetalle);
-      wsVentas['!cols'] = [{ wch: 25 }, { wch: 20 }, { wch: 15 }, { wch: 12 }, { wch: 18 }, { wch: 15 }, { wch: 18 }, { wch: 40 }];
-      XLSX.utils.book_append_sheet(wb, wsVentas, 'Ventas Detalle');
-      
-      const resumenTipo = estadisticas.porTipo.map(tipo => ({
-        'Tipo de Cerveza': tipo.tipo,
-        'Total Vasos': tipo.totalVasos,
-        'Total Dinero (USD)': tipo.totalDinero.toFixed(2)
-      }));
-      
-      const wsTipo = XLSX.utils.json_to_sheet(resumenTipo);
-      wsTipo['!cols'] = [{ wch: 20 }, { wch: 15 }, { wch: 20 }];
-      XLSX.utils.book_append_sheet(wb, wsTipo, 'Resumen por Tipo');
-      
-      const resumenTamanio = estadisticas.porTamanio.map(tamanio => ({
-        'Tamaño': tamanio.nombre,
-        'Total Vasos': tamanio.totalVasos,
-        'Total Dinero (USD)': tamanio.totalDinero.toFixed(2),
-        'Precio Unitario (USD)': tamanio.precioUnitario.toFixed(2)
-      }));
-      
-      const wsTamanio = XLSX.utils.json_to_sheet(resumenTamanio);
-      wsTamanio['!cols'] = [{ wch: 15 }, { wch: 15 }, { wch: 20 }, { wch: 18 }];
-      XLSX.utils.book_append_sheet(wb, wsTamanio, 'Resumen por Tamaño');
-      
-      const matrizData = [];
-      estadisticas.matrizTipoTamanio.forEach(tipo => {
-        tipo.tamanios.forEach(tamanio => {
-          matrizData.push({
-            'Tipo de Cerveza': tipo.tipo,
-            'Tamaño': tamanio.nombre,
-            'Vasos Vendidos': tamanio.vasos,
-            'Total (USD)': tamanio.dinero.toFixed(2)
-          });
-        });
-        matrizData.push({
-          'Tipo de Cerveza': `TOTAL ${tipo.tipo}`,
-          'Tamaño': '',
-          'Vasos Vendidos': tipo.totalVasos,
-          'Total (USD)': tipo.totalDinero.toFixed(2)
-        });
-        matrizData.push({});
-      });
-      
-      const wsMatriz = XLSX.utils.json_to_sheet(matrizData);
-      wsMatriz['!cols'] = [{ wch: 20 }, { wch: 15 }, { wch: 15 }, { wch: 15 }];
-      XLSX.utils.book_append_sheet(wb, wsMatriz, 'Matriz Tipo x Tamaño');
-      
-      const totales = [
-        { 'Concepto': 'Total General', 'Valor (USD)': estadisticas.totalGeneral.toFixed(2) },
-        { 'Concepto': 'Total Vasos', 'Valor': estadisticas.totalVasos },
-        { 'Concepto': 'Total Efectivo', 'Valor (USD)': estadisticas.totalEfectivo.toFixed(2) },
-        { 'Concepto': 'Total Transferencia', 'Valor (USD)': estadisticas.totalTransferencia.toFixed(2) }
-      ];
-      
-      if (filtroActivo) {
-        totales.unshift(
-          { 'Concepto': 'FILTRO APLICADO', 'Valor': '' },
-          { 'Concepto': 'Desde', 'Valor': formatearFechaFiltro(fechaInicio) },
-          { 'Concepto': 'Hasta', 'Valor': formatearFechaFiltro(fechaFin) },
-          { 'Concepto': '', 'Valor': '' }
-        );
-      }
-      
-      const wsTotales = XLSX.utils.json_to_sheet(totales);
-      wsTotales['!cols'] = [{ wch: 25 }, { wch: 20 }];
-      XLSX.utils.book_append_sheet(wb, wsTotales, 'Totales');
-      
-      const now = new Date();
-      const fechaArchivo = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}_${String(now.getHours()).padStart(2, '0')}-${String(now.getMinutes()).padStart(2, '0')}`;
-      const nombreArchivo = filtroActivo 
-        ? `estadisticas_completas_filtradas_${fechaArchivo}.xlsx`
-        : `estadisticas_completas_${fechaArchivo}.xlsx`;
-      
-      XLSX.writeFile(wb, nombreArchivo);
-      alert('✅ Estadísticas completas exportadas exitosamente');
-    } catch (error) {
-      console.error('Error al exportar estadísticas:', error);
-      alert('❌ Error al exportar las estadísticas: ' + error.message);
-    } finally {
-      setExportando(false);
-    }
   };
 
   const aplicarFiltros = () => {
@@ -817,23 +650,6 @@ export default function DetallesPage() {
           <div style={styles.noData}>No hay datos disponibles</div>
         )}
       </div>
-      
-      <div style={styles.exportButtonsGroup}>
-        <button 
-          onClick={exportarAExcel} 
-          style={styles.exportButton}
-          disabled={exportando || ventasRecientes.length === 0}
-        >
-          {exportando ? '⏳ Exportando...' : '📊 Exportar Excel'}
-        </button>
-        <button 
-          onClick={exportarEstadisticasCompletas} 
-          style={styles.exportFullButton}
-          disabled={exportando || ventasRecientes.length === 0}
-        >
-          {exportando ? '⏳ Exportando...' : '📈 Exportar Estadísticas Completas'}
-        </button>
-      </div>
 
       {/* Últimas Ventas con opción de eliminar y comentarios */}
       <div style={styles.card}>
@@ -1040,36 +856,6 @@ const styles = {
     cursor: 'pointer',
     fontSize: '14px',
     height: '36px'
-  },
-  exportButtonsGroup: {
-    display: 'flex',
-    gap: '10px',
-    justifyContent: 'flex-end',
-    marginBottom: '20px'
-  },
-  exportButton: {
-    padding: '8px 20px',
-    backgroundColor: '#28a745',
-    color: 'white',
-    border: 'none',
-    borderRadius: '6px',
-    cursor: 'pointer',
-    fontSize: '14px',
-    fontWeight: 'bold',
-    height: '36px',
-    transition: 'background-color 0.3s'
-  },
-  exportFullButton: {
-    padding: '8px 20px',
-    backgroundColor: '#17a2b8',
-    color: 'white',
-    border: 'none',
-    borderRadius: '6px',
-    cursor: 'pointer',
-    fontSize: '14px',
-    fontWeight: 'bold',
-    height: '36px',
-    transition: 'background-color 0.3s'
   },
   filtroInfo: {
     marginTop: '15px',
