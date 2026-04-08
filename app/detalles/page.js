@@ -1,8 +1,9 @@
- 'use client';
+'use client';
 
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
+import * as XLSX from 'xlsx';
 
 export default function DetallesPage() {
   const router = useRouter();
@@ -23,6 +24,13 @@ export default function DetallesPage() {
   const [fechaInicio, setFechaInicio] = useState('');
   const [fechaFin, setFechaFin] = useState('');
   const [filtroActivo, setFiltroActivo] = useState(false);
+  const [exportando, setExportando] = useState(false);
+  
+  // Estados para el modal de comentarios
+  const [modalAbierto, setModalAbierto] = useState(false);
+  const [ventaSeleccionada, setVentaSeleccionada] = useState(null);
+  const [comentario, setComentario] = useState('');
+  const [guardandoComentario, setGuardandoComentario] = useState(false);
 
   // Definición de tamaños
   const tamanios = [
@@ -74,16 +82,19 @@ export default function DetallesPage() {
     checkAuth();
   }, []);
 
-  // Función para convertir datetime local a UTC
-  const fechaLocalToUTC = (datetimeStr) => {
+  // Función simplificada para manejar fechas
+  const ajustarFechaParaFiltro = (datetimeStr) => {
     if (!datetimeStr) return null;
-    // datetimeStr viene como "2024-01-15T14:30"
-    const [datePart, timePart] = datetimeStr.split('T');
-    const [year, month, day] = datePart.split('-');
-    const [hour, minute] = timePart.split(':');
     
-    // Crear fecha UTC con la hora especificada
-    return new Date(Date.UTC(parseInt(year), parseInt(month) - 1, parseInt(day), parseInt(hour), parseInt(minute), 0)).toISOString();
+    const fechaLocal = new Date(datetimeStr);
+    const year = fechaLocal.getFullYear();
+    const month = String(fechaLocal.getMonth() + 1).padStart(2, '0');
+    const day = String(fechaLocal.getDate()).padStart(2, '0');
+    const hours = String(fechaLocal.getHours()).padStart(2, '0');
+    const minutes = String(fechaLocal.getMinutes()).padStart(2, '0');
+    const seconds = String(fechaLocal.getSeconds()).padStart(2, '0');
+    
+    return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}-05:00`;
   };
 
   const cargarEstadisticas = async () => {
@@ -93,27 +104,18 @@ export default function DetallesPage() {
         .from('ventas')
         .select('*');
       
-      // Aplicar filtros de fecha y hora
       if (filtroActivo && fechaInicio && fechaFin) {
-        const inicioUTC = fechaLocalToUTC(fechaInicio);
-        const finUTC = fechaLocalToUTC(fechaFin);
-        
-        console.log('Filtro activo con hora:');
-        console.log('  Fecha inicio seleccionada:', fechaInicio);
-        console.log('  Fecha inicio UTC:', inicioUTC);
-        console.log('  Fecha fin seleccionada:', fechaFin);
-        console.log('  Fecha fin UTC:', finUTC);
+        const inicioFiltro = ajustarFechaParaFiltro(fechaInicio);
+        const finFiltro = ajustarFechaParaFiltro(fechaFin);
         
         query = query
-          .gte('fecha', inicioUTC)
-          .lte('fecha', finUTC);
+          .gte('fecha', inicioFiltro)
+          .lte('fecha', finFiltro);
       }
       
       const { data, error } = await query.order('fecha', { ascending: false });
       
       if (error) throw error;
-      
-      console.log('Ventas encontradas:', data.length);
       
       // Inicializar estructuras de datos
       const estadisticasPorTipo = {};
@@ -262,16 +264,239 @@ export default function DetallesPage() {
       
     } catch (error) {
       console.error('Error:', error);
+      alert('Error al cargar las estadísticas: ' + error.message);
     } finally {
       setLoading(false);
     }
   };
 
-  const aplicarFiltros = () => {
-    if (fechaInicio && fechaFin) {
-      setFiltroActivo(true);
-      cargarEstadisticas();
+  // Función para abrir el modal de comentarios
+  const abrirModalComentario = (venta) => {
+    setVentaSeleccionada(venta);
+    setComentario(venta.comentario || '');
+    setModalAbierto(true);
+  };
+
+  // Función para guardar el comentario
+  const guardarComentario = async () => {
+    if (!ventaSeleccionada) return;
+    
+    setGuardandoComentario(true);
+    
+    try {
+      const { error } = await supabase
+        .from('ventas')
+        .update({ comentario: comentario.trim() || null })
+        .eq('id', ventaSeleccionada.id);
+      
+      if (error) throw error;
+      
+      // Actualizar la lista de ventas localmente
+      const ventasActualizadas = ventasRecientes.map(venta =>
+        venta.id === ventaSeleccionada.id
+          ? { ...venta, comentario: comentario.trim() || null }
+          : venta
+      );
+      setVentasRecientes(ventasActualizadas);
+      
+      alert('✅ Comentario guardado correctamente');
+      cerrarModal();
+    } catch (error) {
+      console.error('Error al guardar comentario:', error);
+      alert('❌ Error al guardar el comentario: ' + error.message);
+    } finally {
+      setGuardandoComentario(false);
     }
+  };
+
+  // Función para cerrar el modal
+  const cerrarModal = () => {
+    setModalAbierto(false);
+    setVentaSeleccionada(null);
+    setComentario('');
+  };
+
+  // Función para exportar a Excel
+  const exportarAExcel = () => {
+    if (ventasRecientes.length === 0) {
+      alert('No hay datos para exportar');
+      return;
+    }
+
+    setExportando(true);
+    
+    try {
+      const datosExportar = ventasRecientes.map(venta => ({
+        'Fecha': formatearFecha(venta.fecha),
+        'Tipo de Cerveza': venta.tipo_cerveza,
+        'Tamaño (ml)': venta.cantidad_vaso,
+        'Cantidad': venta.cantidad,
+        'Precio Unitario (USD)': venta.precio_unitario,
+        'Total (USD)': venta.total || (venta.cantidad * venta.precio_unitario),
+        'Método de Pago': venta.metodo_pago === 'efectivo' ? 'Efectivo' : 'Transferencia',
+        'Comentario': venta.comentario || ''
+      }));
+
+      const resumen = [
+        {},
+        {},
+        { '': 'RESUMEN DE VENTAS' },
+        { '': `Total de Ventas: ${ventasRecientes.length}` },
+        { '': `Total de Vasos: ${estadisticas.totalVasos}` },
+        { '': `Total General: $${estadisticas.totalGeneral.toFixed(2)} USD` },
+        { '': `Total Efectivo: $${estadisticas.totalEfectivo.toFixed(2)} USD` },
+        { '': `Total Transferencia: $${estadisticas.totalTransferencia.toFixed(2)} USD` }
+      ];
+
+      if (filtroActivo) {
+        resumen.unshift(
+          { '': `FILTRO APLICADO:` },
+          { '': `Desde: ${formatearFechaFiltro(fechaInicio)}` },
+          { '': `Hasta: ${formatearFechaFiltro(fechaFin)}` },
+          { '': '' }
+        );
+      }
+
+      const datosCompletos = [...resumen, {}, ...datosExportar];
+      const wb = XLSX.utils.book_new();
+      const ws = XLSX.utils.json_to_sheet(datosCompletos, { skipHeader: false });
+      ws['!cols'] = [{ wch: 25 }, { wch: 20 }, { wch: 15 }, { wch: 12 }, { wch: 18 }, { wch: 15 }, { wch: 18 }, { wch: 40 }];
+      XLSX.utils.book_append_sheet(wb, ws, 'Ventas');
+
+      const now = new Date();
+      const fechaArchivo = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}_${String(now.getHours()).padStart(2, '0')}-${String(now.getMinutes()).padStart(2, '0')}`;
+      const nombreArchivo = filtroActivo 
+        ? `ventas_filtradas_${fechaArchivo}.xlsx`
+        : `ventas_totales_${fechaArchivo}.xlsx`;
+
+      XLSX.writeFile(wb, nombreArchivo);
+      alert(`✅ Exportación completada: ${ventasRecientes.length} ventas exportadas`);
+    } catch (error) {
+      console.error('Error al exportar:', error);
+      alert('❌ Error al exportar los datos: ' + error.message);
+    } finally {
+      setExportando(false);
+    }
+  };
+
+  // Función para exportar estadísticas completas
+  const exportarEstadisticasCompletas = () => {
+    setExportando(true);
+    
+    try {
+      const wb = XLSX.utils.book_new();
+      
+      const ventasDetalle = ventasRecientes.map(venta => ({
+        'Fecha': formatearFecha(venta.fecha),
+        'Tipo de Cerveza': venta.tipo_cerveza,
+        'Tamaño (ml)': venta.cantidad_vaso,
+        'Cantidad': venta.cantidad,
+        'Precio Unitario (USD)': venta.precio_unitario,
+        'Total (USD)': venta.total || (venta.cantidad * venta.precio_unitario),
+        'Método de Pago': venta.metodo_pago === 'efectivo' ? 'Efectivo' : 'Transferencia',
+        'Comentario': venta.comentario || ''
+      }));
+      
+      const wsVentas = XLSX.utils.json_to_sheet(ventasDetalle);
+      wsVentas['!cols'] = [{ wch: 25 }, { wch: 20 }, { wch: 15 }, { wch: 12 }, { wch: 18 }, { wch: 15 }, { wch: 18 }, { wch: 40 }];
+      XLSX.utils.book_append_sheet(wb, wsVentas, 'Ventas Detalle');
+      
+      const resumenTipo = estadisticas.porTipo.map(tipo => ({
+        'Tipo de Cerveza': tipo.tipo,
+        'Total Vasos': tipo.totalVasos,
+        'Total Dinero (USD)': tipo.totalDinero.toFixed(2)
+      }));
+      
+      const wsTipo = XLSX.utils.json_to_sheet(resumenTipo);
+      wsTipo['!cols'] = [{ wch: 20 }, { wch: 15 }, { wch: 20 }];
+      XLSX.utils.book_append_sheet(wb, wsTipo, 'Resumen por Tipo');
+      
+      const resumenTamanio = estadisticas.porTamanio.map(tamanio => ({
+        'Tamaño': tamanio.nombre,
+        'Total Vasos': tamanio.totalVasos,
+        'Total Dinero (USD)': tamanio.totalDinero.toFixed(2),
+        'Precio Unitario (USD)': tamanio.precioUnitario.toFixed(2)
+      }));
+      
+      const wsTamanio = XLSX.utils.json_to_sheet(resumenTamanio);
+      wsTamanio['!cols'] = [{ wch: 15 }, { wch: 15 }, { wch: 20 }, { wch: 18 }];
+      XLSX.utils.book_append_sheet(wb, wsTamanio, 'Resumen por Tamaño');
+      
+      const matrizData = [];
+      estadisticas.matrizTipoTamanio.forEach(tipo => {
+        tipo.tamanios.forEach(tamanio => {
+          matrizData.push({
+            'Tipo de Cerveza': tipo.tipo,
+            'Tamaño': tamanio.nombre,
+            'Vasos Vendidos': tamanio.vasos,
+            'Total (USD)': tamanio.dinero.toFixed(2)
+          });
+        });
+        matrizData.push({
+          'Tipo de Cerveza': `TOTAL ${tipo.tipo}`,
+          'Tamaño': '',
+          'Vasos Vendidos': tipo.totalVasos,
+          'Total (USD)': tipo.totalDinero.toFixed(2)
+        });
+        matrizData.push({});
+      });
+      
+      const wsMatriz = XLSX.utils.json_to_sheet(matrizData);
+      wsMatriz['!cols'] = [{ wch: 20 }, { wch: 15 }, { wch: 15 }, { wch: 15 }];
+      XLSX.utils.book_append_sheet(wb, wsMatriz, 'Matriz Tipo x Tamaño');
+      
+      const totales = [
+        { 'Concepto': 'Total General', 'Valor (USD)': estadisticas.totalGeneral.toFixed(2) },
+        { 'Concepto': 'Total Vasos', 'Valor': estadisticas.totalVasos },
+        { 'Concepto': 'Total Efectivo', 'Valor (USD)': estadisticas.totalEfectivo.toFixed(2) },
+        { 'Concepto': 'Total Transferencia', 'Valor (USD)': estadisticas.totalTransferencia.toFixed(2) }
+      ];
+      
+      if (filtroActivo) {
+        totales.unshift(
+          { 'Concepto': 'FILTRO APLICADO', 'Valor': '' },
+          { 'Concepto': 'Desde', 'Valor': formatearFechaFiltro(fechaInicio) },
+          { 'Concepto': 'Hasta', 'Valor': formatearFechaFiltro(fechaFin) },
+          { 'Concepto': '', 'Valor': '' }
+        );
+      }
+      
+      const wsTotales = XLSX.utils.json_to_sheet(totales);
+      wsTotales['!cols'] = [{ wch: 25 }, { wch: 20 }];
+      XLSX.utils.book_append_sheet(wb, wsTotales, 'Totales');
+      
+      const now = new Date();
+      const fechaArchivo = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}_${String(now.getHours()).padStart(2, '0')}-${String(now.getMinutes()).padStart(2, '0')}`;
+      const nombreArchivo = filtroActivo 
+        ? `estadisticas_completas_filtradas_${fechaArchivo}.xlsx`
+        : `estadisticas_completas_${fechaArchivo}.xlsx`;
+      
+      XLSX.writeFile(wb, nombreArchivo);
+      alert('✅ Estadísticas completas exportadas exitosamente');
+    } catch (error) {
+      console.error('Error al exportar estadísticas:', error);
+      alert('❌ Error al exportar las estadísticas: ' + error.message);
+    } finally {
+      setExportando(false);
+    }
+  };
+
+  const aplicarFiltros = () => {
+    if (!fechaInicio || !fechaFin) {
+      alert('Por favor selecciona ambas fechas (desde y hasta)');
+      return;
+    }
+    
+    const inicio = new Date(fechaInicio);
+    const fin = new Date(fechaFin);
+    
+    if (inicio > fin) {
+      alert('La fecha de inicio no puede ser mayor que la fecha de fin');
+      return;
+    }
+    
+    setFiltroActivo(true);
+    cargarEstadisticas();
   };
 
   const limpiarFiltros = () => {
@@ -281,7 +506,6 @@ export default function DetallesPage() {
     cargarEstadisticas();
   };
 
-  // Función para eliminar una venta
   const eliminarVenta = async (id) => {
     if (!confirm('¿Estás seguro de que deseas eliminar esta venta? Esta acción no se puede deshacer.')) {
       return;
@@ -299,8 +523,6 @@ export default function DetallesPage() {
       if (error) throw error;
       
       alert('✅ Venta eliminada correctamente');
-      
-      // Recargar estadísticas
       cargarEstadisticas();
       
     } catch (error) {
@@ -325,6 +547,19 @@ export default function DetallesPage() {
     });
   };
 
+  const formatearFechaFiltro = (fechaStr) => {
+    if (!fechaStr) return '';
+    const fecha = new Date(fechaStr);
+    return fecha.toLocaleString('es-EC', {
+      timeZone: 'America/Guayaquil',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
+
   if (loading) {
     return (
       <div style={styles.loadingContainer}>
@@ -337,9 +572,11 @@ export default function DetallesPage() {
     <div style={styles.container}>
       <div style={styles.header}>
         <h1 style={styles.title}>📊 Detalles de Ventas</h1>
-        <button onClick={() => router.push('/ventas')} style={styles.backButton}>
-          ← Volver a Ventas
-        </button>
+        <div style={styles.headerButtons}>
+          <button onClick={() => router.push('/ventas')} style={styles.backButton}>
+            ← Volver a Ventas
+          </button>
+        </div>
       </div>
 
       {/* Filtros de fecha y hora */}
@@ -374,7 +611,7 @@ export default function DetallesPage() {
         </div>
         {filtroActivo && (
           <div style={styles.filtroInfo}>
-            🔍 Mostrando ventas desde {formatearFecha(fechaLocalToUTC(fechaInicio))} hasta {formatearFecha(fechaLocalToUTC(fechaFin))}
+            🔍 Mostrando ventas desde {formatearFechaFiltro(fechaInicio)} hasta {formatearFechaFiltro(fechaFin)}
           </div>
         )}
       </div>
@@ -580,18 +817,37 @@ export default function DetallesPage() {
           <div style={styles.noData}>No hay datos disponibles</div>
         )}
       </div>
+      
+      <div style={styles.exportButtonsGroup}>
+        <button 
+          onClick={exportarAExcel} 
+          style={styles.exportButton}
+          disabled={exportando || ventasRecientes.length === 0}
+        >
+          {exportando ? '⏳ Exportando...' : '📊 Exportar Excel'}
+        </button>
+        <button 
+          onClick={exportarEstadisticasCompletas} 
+          style={styles.exportFullButton}
+          disabled={exportando || ventasRecientes.length === 0}
+        >
+          {exportando ? '⏳ Exportando...' : '📈 Exportar Estadísticas Completas'}
+        </button>
+      </div>
 
-      {/* Últimas Ventas con opción de eliminar */}
+      {/* Últimas Ventas con opción de eliminar y comentarios */}
       <div style={styles.card}>
         <div style={styles.ventasHeader}>
           <h2 style={styles.subtitle}>🕐 Últimas Ventas</h2>
-          <button 
-            onClick={() => cargarEstadisticas()} 
-            style={styles.refreshButton}
-            title="Actualizar lista"
-          >
-            🔄 Actualizar
-          </button>
+          <div style={styles.ventasHeaderButtons}>
+            <button 
+              onClick={() => cargarEstadisticas()} 
+              style={styles.refreshButton}
+              title="Actualizar lista"
+            >
+              🔄 Actualizar
+            </button>
+          </div>
         </div>
         <div style={styles.tableContainer}>
           <table style={styles.table}>
@@ -604,6 +860,7 @@ export default function DetallesPage() {
                 <th>Precio Unit.</th>
                 <th>Total</th>
                 <th>Método Pago</th>
+                <th>Comentario</th>
                 <th style={styles.accionesHeader}>Acciones</th>
               </tr>
             </thead>
@@ -617,14 +874,33 @@ export default function DetallesPage() {
                   <td>${venta.precio_unitario.toFixed(2)}</td>
                   <td style={styles.dineroCell}>${(venta.total || venta.cantidad * venta.precio_unitario).toFixed(2)}</td>
                   <td>{venta.metodo_pago === 'efectivo' ? 'Efectivo' : 'Transferencia'}</td>
+                  <td style={styles.comentarioCell}>
+                    {venta.comentario ? (
+                      <div style={styles.comentarioTexto}>
+                        <span>{venta.comentario}</span>
+                        <button
+                          onClick={() => abrirModalComentario(venta)}
+                          style={styles.editarComentarioButton}
+                          title="Editar comentario"
+                        >
+                          ✏️
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => abrirModalComentario(venta)}
+                        style={styles.agregarComentarioButton}
+                      >
+                        💬 Agregar comentario
+                      </button>
+                    )}
+                  </td>
                   <td style={styles.accionesCell}>
                     <button
                       onClick={() => eliminarVenta(venta.id)}
                       disabled={eliminando && ventaAEliminar === venta.id}
                       style={styles.eliminarButton}
                       title="Eliminar venta"
-                      onMouseEnter={(e) => e.target.style.backgroundColor = '#c82333'}
-                      onMouseLeave={(e) => e.target.style.backgroundColor = '#dc3545'}
                     >
                       {eliminando && ventaAEliminar === venta.id ? '⏳' : '🗑️ Eliminar'}
                     </button>
@@ -633,13 +909,57 @@ export default function DetallesPage() {
               ))}
               {ventasRecientes.length === 0 && (
                 <tr>
-                  <td colSpan="8" style={styles.noData}>No hay ventas registradas</td>
+                  <td colSpan="9" style={styles.noData}>No hay ventas registradas</td>
                 </tr>
               )}
             </tbody>
           </table>
         </div>
       </div>
+
+      {/* Modal de comentarios */}
+      {modalAbierto && (
+        <div style={styles.modalOverlay} onClick={cerrarModal}>
+          <div style={styles.modal} onClick={(e) => e.stopPropagation()}>
+            <div style={styles.modalHeader}>
+              <h3 style={styles.modalTitle}>
+                {ventaSeleccionada?.comentario ? 'Editar Comentario' : 'Agregar Comentario'}
+              </h3>
+              <button onClick={cerrarModal} style={styles.modalClose}>
+                ✕
+              </button>
+            </div>
+            <div style={styles.modalBody}>
+              <div style={styles.modalInfo}>
+                <p><strong>📅 Fecha:</strong> {ventaSeleccionada && formatearFecha(ventaSeleccionada.fecha)}</p>
+                <p><strong>🍺 Producto:</strong> {ventaSeleccionada?.tipo_cerveza} - {ventaSeleccionada?.cantidad_vaso} ml</p>
+                <p><strong>💰 Total:</strong> ${ventaSeleccionada && (ventaSeleccionada.total || ventaSeleccionada.cantidad * ventaSeleccionada.precio_unitario).toFixed(2)}</p>
+              </div>
+              <label style={styles.modalLabel}>Comentario:</label>
+              <textarea
+                value={comentario}
+                onChange={(e) => setComentario(e.target.value)}
+                placeholder="Escribe un comentario sobre esta venta..."
+                style={styles.modalTextarea}
+                rows="4"
+                autoFocus
+              />
+            </div>
+            <div style={styles.modalFooter}>
+              <button onClick={cerrarModal} style={styles.modalCancelButton}>
+                Cancelar
+              </button>
+              <button 
+                onClick={guardarComentario} 
+                style={styles.modalSaveButton}
+                disabled={guardandoComentario}
+              >
+                {guardandoComentario ? 'Guardando...' : 'Guardar Comentario'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -657,6 +977,10 @@ const styles = {
     marginBottom: '30px',
     flexWrap: 'wrap',
     gap: '15px'
+  },
+  headerButtons: {
+    display: 'flex',
+    gap: '10px'
   },
   title: {
     fontSize: '32px',
@@ -716,6 +1040,36 @@ const styles = {
     cursor: 'pointer',
     fontSize: '14px',
     height: '36px'
+  },
+  exportButtonsGroup: {
+    display: 'flex',
+    gap: '10px',
+    justifyContent: 'flex-end',
+    marginBottom: '20px'
+  },
+  exportButton: {
+    padding: '8px 20px',
+    backgroundColor: '#28a745',
+    color: 'white',
+    border: 'none',
+    borderRadius: '6px',
+    cursor: 'pointer',
+    fontSize: '14px',
+    fontWeight: 'bold',
+    height: '36px',
+    transition: 'background-color 0.3s'
+  },
+  exportFullButton: {
+    padding: '8px 20px',
+    backgroundColor: '#17a2b8',
+    color: 'white',
+    border: 'none',
+    borderRadius: '6px',
+    cursor: 'pointer',
+    fontSize: '14px',
+    fontWeight: 'bold',
+    height: '36px',
+    transition: 'background-color 0.3s'
   },
   filtroInfo: {
     marginTop: '15px',
@@ -917,6 +1271,41 @@ const styles = {
     color: '#2e7d32',
     fontWeight: 'bold'
   },
+  comentarioCell: {
+    maxWidth: '250px',
+    padding: '12px'
+  },
+  comentarioTexto: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: '8px',
+    backgroundColor: '#fff3e0',
+    padding: '6px 10px',
+    borderRadius: '6px',
+    fontSize: '13px',
+    color: '#e65100'
+  },
+  editarComentarioButton: {
+    background: 'none',
+    border: 'none',
+    cursor: 'pointer',
+    fontSize: '14px',
+    padding: '2px 5px',
+    borderRadius: '4px',
+    transition: 'background-color 0.3s'
+  },
+  agregarComentarioButton: {
+    backgroundColor: '#2196F3',
+    color: 'white',
+    border: 'none',
+    borderRadius: '6px',
+    padding: '6px 12px',
+    cursor: 'pointer',
+    fontSize: '12px',
+    fontWeight: 'bold',
+    transition: 'background-color 0.3s'
+  },
   loadingContainer: {
     display: 'flex',
     justifyContent: 'center',
@@ -939,6 +1328,10 @@ const styles = {
     alignItems: 'center',
     marginBottom: '20px',
     flexWrap: 'wrap',
+    gap: '10px'
+  },
+  ventasHeaderButtons: {
+    display: 'flex',
     gap: '10px'
   },
   refreshButton: {
@@ -971,6 +1364,106 @@ const styles = {
     fontSize: '12px',
     fontWeight: 'bold',
     transition: 'background-color 0.3s'
+  },
+  // Estilos del modal
+  modalOverlay: {
+    position: 'fixed',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    display: 'flex',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1000
+  },
+  modal: {
+    backgroundColor: 'white',
+    borderRadius: '12px',
+    width: '90%',
+    maxWidth: '500px',
+    maxHeight: '90vh',
+    overflow: 'auto',
+    boxShadow: '0 4px 20px rgba(0,0,0,0.2)'
+  },
+  modalHeader: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: '20px',
+    borderBottom: '1px solid #e0e0e0'
+  },
+  modalTitle: {
+    margin: 0,
+    fontSize: '20px',
+    color: '#333'
+  },
+  modalClose: {
+    background: 'none',
+    border: 'none',
+    fontSize: '24px',
+    cursor: 'pointer',
+    color: '#999',
+    padding: '0',
+    width: '30px',
+    height: '30px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: '50%',
+    transition: 'background-color 0.3s'
+  },
+  modalBody: {
+    padding: '20px'
+  },
+  modalInfo: {
+    backgroundColor: '#f8f9fa',
+    padding: '12px',
+    borderRadius: '8px',
+    marginBottom: '20px',
+    fontSize: '14px'
+  },
+  modalLabel: {
+    display: 'block',
+    marginBottom: '8px',
+    fontWeight: 'bold',
+    color: '#333'
+  },
+  modalTextarea: {
+    width: '100%',
+    padding: '10px',
+    border: '1px solid #ddd',
+    borderRadius: '8px',
+    fontSize: '14px',
+    fontFamily: 'inherit',
+    resize: 'vertical'
+  },
+  modalFooter: {
+    display: 'flex',
+    justifyContent: 'flex-end',
+    gap: '10px',
+    padding: '20px',
+    borderTop: '1px solid #e0e0e0'
+  },
+  modalCancelButton: {
+    padding: '8px 16px',
+    backgroundColor: '#6c757d',
+    color: 'white',
+    border: 'none',
+    borderRadius: '6px',
+    cursor: 'pointer',
+    fontSize: '14px'
+  },
+  modalSaveButton: {
+    padding: '8px 16px',
+    backgroundColor: '#4CAF50',
+    color: 'white',
+    border: 'none',
+    borderRadius: '6px',
+    cursor: 'pointer',
+    fontSize: '14px',
+    fontWeight: 'bold'
   }
 };
 
@@ -993,6 +1486,19 @@ if (typeof document !== 'undefined') {
       border-radius: 6px;
       font-size: 14px;
       font-family: inherit;
+    }
+    button:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+    .editarComentarioButton:hover {
+      background-color: #e0e0e0;
+    }
+    .agregarComentarioButton:hover {
+      background-color: #1976d2;
+    }
+    .modalClose:hover {
+      background-color: #f0f0f0;
     }
   `;
   document.head.appendChild(styleSheet);
