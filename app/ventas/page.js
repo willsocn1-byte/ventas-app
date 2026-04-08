@@ -3,7 +3,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
-import Image from 'next/image'; // Importa el componente Image
 
 export default function VentasPage() {
   const router = useRouter();
@@ -18,6 +17,7 @@ export default function VentasPage() {
 
   const [totalCarrito, setTotalCarrito] = useState(0);
   const [metodoPago, setMetodoPago] = useState('efectivo');
+  const [comentarioGeneral, setComentarioGeneral] = useState(''); // Nuevo estado para comentario
   const [loading, setLoading] = useState(false);
   const [mensaje, setMensaje] = useState({ tipo: '', texto: '' });
 
@@ -189,6 +189,7 @@ export default function VentasPage() {
         precio_unitario: item.precio_unitario,
         metodo_pago: metodoPago,
         fecha: getFechaEcuador(),
+        comentario: comentarioGeneral.trim() || null, // Agregar comentario a cada venta
         cantidad_total_negra: item.tipo_cerveza === 'Negra' ? item.cantidad : 0,
         cantidad_total_rubia: item.tipo_cerveza === 'Rubia' ? item.cantidad : 0,
         cantidad_total_roja: item.tipo_cerveza === 'Roja' ? item.cantidad : 0
@@ -205,9 +206,10 @@ export default function VentasPage() {
         texto: `✅ Venta registrada exitosamente! Total: $${totalCarrito.toFixed(2)} USD`
       });
 
-      // Limpiar carrito
+      // Limpiar carrito y comentario
       setCarrito([]);
       setMetodoPago('efectivo');
+      setComentarioGeneral(''); // Limpiar comentario después de registrar
 
     } catch (error) {
       console.error('Error:', error);
@@ -221,26 +223,8 @@ export default function VentasPage() {
   };
 
   return (
-
-
     <div style={styles.container}>
       <div style={styles.card}>
-        {/* Header con logo */}
-        <div style={styles.header}>
-          <div style={styles.logoContainer}>
-            <Image
-              src="/logo5.png"
-              alt="Logo Cervecería"
-              width={750}
-              height={150}
-              style={styles.logo}
-              priority
-              loading="eager"
-              suppressHydrationWarning
-            />
-          </div>
-        </div>
-
         {user && (
           <div style={styles.userInfo}>
             👤 Usuario: {user.email}
@@ -258,9 +242,9 @@ export default function VentasPage() {
           </div>
         )}
 
-        {/* Sección para agregar productos */}
-        <div style={styles.seccionAgregar}>
-          <h3 style={styles.seccionTitulo}>➕ Seleciona tu cerveza</h3>
+        {/* TODO DENTRO DE UN MISMO CONTENEDOR */}
+        <div style={styles.contenedorUnico}>
+          <h3 style={styles.seccionTitulo}>🍺 SHITAKE`N BEER🍺</h3>
 
           <div style={styles.formGroup}>
             <label style={styles.label}>🍺 Tipo de Cerveza</label>
@@ -302,7 +286,7 @@ export default function VentasPage() {
               ))}
             </div>
           </div>
-          {/* Método de Pago */}
+
           <div style={styles.formGroup}>
             <label style={styles.label}>💳 Método de Pago</label>
             <div style={styles.buttonGroup}>
@@ -322,6 +306,7 @@ export default function VentasPage() {
               ))}
             </div>
           </div>
+
           <div style={styles.formGroup}>
             <label style={styles.label}>🔢 Cantidad</label>
             <div style={styles.cantidadContainer}>
@@ -345,6 +330,18 @@ export default function VentasPage() {
                 ➕
               </button>
             </div>
+          </div>
+
+          {/* Campo de comentario */}
+          <div style={styles.formGroup}>
+            <label style={styles.label}>💬 Comentario (Opcional)</label>
+            <textarea
+              value={comentarioGeneral}
+              onChange={(e) => setComentarioGeneral(e.target.value)}
+              placeholder="Ej: Cliente especial, entrega a domicilio, nota importante, etc."
+              style={styles.comentarioInput}
+              rows="3"
+            />
           </div>
 
           {itemActual.precio_unitario > 0 && (
@@ -372,99 +369,102 @@ export default function VentasPage() {
               </div>
             </div>
           )}
-          <button
-            onClick={agregarAlCarrito}
-            style={styles.agregarButton}
-          >
+
+          <button onClick={agregarAlCarrito} style={styles.agregarButton}>
             ➕ Agregar 🍺
           </button>
-        </div>
 
-        {/* Carrito de compras */}
-        <div style={styles.seccionCarrito}>
-          <div style={styles.carritoHeader}>
-            <h3 style={styles.seccionTitulo}>🛒 Carrito Cervecero 🍺</h3>
-            {carrito.length > 0 && (
-              <button onClick={vaciarCarrito} style={styles.vaciarButton}>
-                🗑️ Vaciar
-              </button>
+          {/* Carrito de compras */}
+          <div style={styles.carritoWrapper}>
+            <div style={styles.carritoHeader}>
+              <h3 style={styles.seccionTitulo}>🛒 Carrito Cervecero 🍺</h3>
+              {carrito.length > 0 && (
+                <button onClick={vaciarCarrito} style={styles.vaciarButton}>
+                  🗑️ Vaciar
+                </button>
+              )}
+            </div>
+
+            {carrito.length === 0 ? (
+              <div style={styles.carritoVacio}>
+                🍺 El carrito está vacío. Agrega cerveza.
+              </div>
+            ) : (
+              <>
+                <div style={styles.tableContainer}>
+                  <table style={styles.carritoTable}>
+                    <thead>
+                      <tr>
+                        <th style={styles.thProducto}>Producto</th>
+                        <th style={styles.thTamanio}>Tamaño</th>
+                        <th style={styles.thCantidad}>Cantidad</th>
+                        <th style={styles.thPrecio}>Precio Unit.</th>
+                        <th style={styles.thSubtotal}>Subtotal</th>
+                        <th style={styles.thAcciones}>Acciones</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {carrito.map((item) => (
+                        <tr key={item.id} style={styles.trBody}>
+                          <td style={styles.tdProducto}>{item.tipo_nombre}</td>
+                          <td style={styles.tdTamanio}>{item.cantidad_vaso} ml</td>
+                          <td style={styles.tdCantidad}>{item.cantidad}</td>
+                          <td style={styles.tdPrecio}>${item.precio_unitario.toFixed(2)}</td>
+                          <td style={styles.tdSubtotal}>${item.subtotal.toFixed(2)}</td>
+                          <td style={styles.tdAcciones}>
+                            <button
+                              onClick={() => eliminarDelCarrito(item.id)}
+                              style={styles.eliminarItemButton}
+                            >
+                              ❌
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                <div style={styles.totalCarrito}>
+                  <span style={styles.totalLabel}>Total del pedido:</span>
+                  <span style={styles.totalValor}>${totalCarrito.toFixed(2)} USD</span>
+                </div>
+
+                {/* Mostrar comentario si existe */}
+                {comentarioGeneral && (
+                  <div style={styles.comentarioPreview}>
+                    <strong>💬 Comentario del pedido:</strong> {comentarioGeneral}
+                  </div>
+                )}
+              </>
             )}
           </div>
 
-          {carrito.length === 0 ? (
-            <div style={styles.carritoVacio}>
-              🍺 El carrito está vacío. Agrega cerveza.
-            </div>
-          ) : (
-            <>
-              <div style={styles.tableContainer}>
-                <table style={styles.carritoTable}>
-                  <thead>
-                    <tr>
-                      <th style={styles.thProducto}>Producto</th>
-                      <th style={styles.thTamanio}>Tamaño</th>
-                      <th style={styles.thCantidad}>Cantidad</th>
-                      <th style={styles.thPrecio}>Precio Unit.</th>
-                      <th style={styles.thSubtotal}>Subtotal</th>
-                      <th style={styles.thAcciones}>Acciones</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {carrito.map((item) => (
-                      <tr key={item.id} style={styles.trBody}>
-                        <td style={styles.tdProducto}>{item.tipo_nombre}</td>
-                        <td style={styles.tdTamanio}>{item.cantidad_vaso} ml</td>
-                        <td style={styles.tdCantidad}>{item.cantidad}</td>
-                        <td style={styles.tdPrecio}>${item.precio_unitario.toFixed(2)}</td>
-                        <td style={styles.tdSubtotal}>${item.subtotal.toFixed(2)}</td>
-                        <td style={styles.tdAcciones}>
-                          <button
-                            onClick={() => eliminarDelCarrito(item.id)}
-                            style={styles.eliminarItemButton}
-                          >
-                            ❌
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-
-              <div style={styles.totalCarrito}>
-                <span style={styles.totalLabel}>Total del pedido:</span>
-                <span style={styles.totalValor}>${totalCarrito.toFixed(2)} USD</span>
-              </div>
-            </>
-          )}
-        </div>
-        {/* Botón registrar venta */}
-        <button
-          onClick={registrarVenta}
-          style={styles.registrarButton}
-          disabled={loading || carrito.length === 0}
-        >
-          {loading ? 'Registrando...' : `✅ Registrar Venta - Total: $${totalCarrito.toFixed(2)}`}
-        </button>
-        <div style={styles.headerButtons}>
           <button
-            onClick={() => router.push('/detalles')}
-            style={styles.detallesButton}
+            onClick={registrarVenta}
+            style={styles.registrarButton}
+            disabled={loading || carrito.length === 0}
           >
+            {loading ? 'Registrando...' : `✅ Registrar Venta - Total: $${totalCarrito.toFixed(2)}`}
+          </button>
+
+          <button onClick={() => router.push('/detalles')} style={styles.detallesButton}>
             📊 Ver Detalles
           </button>
         </div>
       </div>
     </div>
-
-
   );
 }
 
 const styles = {
   container: {
     minHeight: '100vh',
-    backgroundColor: '#ece5e5de',
+    backgroundImage: 'url("/logo1.png")',
+    backgroundSize: 'cover',
+    backgroundPosition: 'center',
+    backgroundAttachment: 'fixed',
+    backgroundRepeat: 'no-repeat',
     padding: '20px',
     display: 'flex',
     justifyContent: 'center',
@@ -473,37 +473,20 @@ const styles = {
   card: {
     maxWidth: '800px',
     width: '100%',
-    backgroundColor: 'rgba(255, 255, 255, 0.95)', // 95% opaco
-    border: '1px solid rgba(255, 193, 7, 0.3)', // dorado sutil
+    backgroundColor: 'rgba(236, 228, 228, 0.65)',
+    border: '1px solid rgba(255, 193, 7, 0.3)',
     borderRadius: '20px',
     padding: '35px',
-    color: '#f5e6c8', // tono crema tipo espuma
     boxShadow: '0 10px 25px rgba(0,0,0,0.6)',
-
-    // efecto tipo vidrio / premium
-    backdropFilter: 'blur(8px)',
-
-    // detalle llamativo
+    backdropFilter: 'blur(5px)',
     position: 'relative',
-    overflow: 'hidden',
-
-    // efecto glow sutil dorado
-    '&::before': {
-      content: '""',
-      position: 'absolute',
-      top: '-50%',
-      left: '-50%',
-      width: '200%',
-      height: '200%',
-      background: 'radial-gradient(circle, rgba(255,193,7,0.15), transparent 70%)',
-      transform: 'rotate(25deg)',
-    }
+    overflow: 'hidden'
   },
-  title: {
-    textAlign: 'center',
-    color: '#333',
-    marginBottom: 0,
-    fontSize: '28px'
+  contenedorUnico: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '2px',
+    width: '100%'
   },
   userInfo: {
     backgroundColor: '#e3f2fd',
@@ -514,27 +497,11 @@ const styles = {
     fontSize: '14px',
     color: '#1976d2'
   },
-  seccionAgregar: {
-    backgroundColor: '#f8f9fa',
-    padding: '20px',
-    borderRadius: '12px',
-    marginBottom: '25px',
-    border: '1px solid #e0e0e0'
-  },
-  seccionCarrito: {
-    marginBottom: '25px'
-  },
   seccionTitulo: {
-    fontSize: '18px',
+    fontSize: '20px',
     fontWeight: 'bold',
-    color: '#333',
-    marginBottom: '15px'
-  },
-  carritoHeader: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: '15px'
+    color: '#080808',
+    marginBottom: '5px'
   },
   formGroup: {
     marginBottom: '20px'
@@ -543,8 +510,8 @@ const styles = {
     display: 'block',
     marginBottom: '10px',
     fontWeight: 'bold',
-    color: '#555',
-    fontSize: '16px'
+    color: '#0a0a0a',
+    fontSize: '20px'
   },
   buttonGroup: {
     display: 'flex',
@@ -565,11 +532,11 @@ const styles = {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: '20px',
+    gap: '10px',
     backgroundColor: 'white',
-    padding: '15px',
+    padding: '5px',
     borderRadius: '12px',
-    border: '1px solid #e0e0e0'
+    border: '1px solid #cac5c5'
   },
   cantidadButton: {
     width: '48px',
@@ -600,18 +567,30 @@ const styles = {
     fontSize: '14px',
     color: '#0a0a0a'
   },
-  precioItemBox: {
-    backgroundColor: '#fafafa',
+  comentarioInput: {
+    width: '50%',
     padding: '12px',
+    border: '1px solid #ddd',
     borderRadius: '8px',
-    marginBottom: '15px',
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center'
+    fontSize: '14px',
+    fontFamily: 'inherit',
+    resize: 'vertical',
+    backgroundColor: 'white'
   },
-  subtotalItem: {
-    fontWeight: 'bold',
-    color: '#2e7d32'
+  comentarioInfo: {
+    marginTop: '5px',
+    fontSize: '12px',
+    color: '#666',
+    fontStyle: 'italic'
+  },
+  comentarioPreview: {
+    marginTop: '10px',
+    padding: '10px',
+    backgroundColor: '#fff3e0',
+    borderRadius: '8px',
+    fontSize: '14px',
+    color: '#e65100',
+    borderLeft: '4px solid #ff9800'
   },
   agregarButton: {
     width: '100%',
@@ -623,7 +602,17 @@ const styles = {
     fontSize: '16px',
     fontWeight: 'bold',
     cursor: 'pointer',
-    transition: 'background-color 0.3s'
+    transition: 'background-color 0.3s',
+    marginBottom: '20px'
+  },
+  carritoWrapper: {
+    width: '100%'
+  },
+  carritoHeader: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: '15px'
   },
   vaciarButton: {
     padding: '6px 12px',
@@ -654,10 +643,6 @@ const styles = {
     overflow: 'hidden',
     boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
   },
-  subtotalCell: {
-    fontWeight: 'bold',
-    color: '#2e7d32'
-  },
   eliminarItemButton: {
     background: 'none',
     border: 'none',
@@ -675,6 +660,7 @@ const styles = {
     backgroundColor: '#e8f5e9',
     borderRadius: '8px',
     marginTop: '10px',
+    marginBottom: '20px',
     border: '1px solid #4CAF50'
   },
   totalLabel: {
@@ -702,7 +688,7 @@ const styles = {
     fontWeight: 'bold',
     cursor: 'pointer',
     transition: 'background-color 0.3s',
-    marginTop: '10px'
+    marginBottom: '10px'
   },
   detallesButton: {
     width: '100%',
@@ -714,8 +700,7 @@ const styles = {
     fontSize: '18px',
     fontWeight: 'bold',
     cursor: 'pointer',
-    transition: 'background-color 0.3s',
-    marginTop: '10px'
+    transition: 'background-color 0.3s'
   },
   mensaje: {
     padding: '12px',
@@ -724,26 +709,86 @@ const styles = {
     textAlign: 'center',
     border: '1px solid'
   },
-  carritoTable: {
-    width: '100%',
-    borderCollapse: 'collapse',
-    backgroundColor: '#ffffff',
-    borderRadius: '8px',
-    overflow: 'hidden',
-    boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
+  precioItemBoxMinimal: {
+    marginBottom: '20px'
   },
-
-  // Estilos para los encabezados (th)
+  precioItemCard: {
+    backgroundColor: '#ffffff',
+    borderRadius: '12px',
+    overflow: 'hidden',
+    boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+    border: '1px solid #e0e0e0'
+  },
+  precioItemCardHeader: {
+    backgroundColor: '#4CAF50',
+    padding: '10px 15px',
+    textAlign: 'center'
+  },
+  precioItemCardTitle: {
+    color: '#ffffff',
+    fontSize: '14px',
+    fontWeight: 'bold',
+    letterSpacing: '1px'
+  },
+  precioItemCardBody: {
+    padding: '15px'
+  },
+  precioItemRow: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: '15px'
+  },
+  precioItemRowLeft: {
+    flex: 1,
+    textAlign: 'center',
+    padding: '10px',
+    backgroundColor: '#f8f9fa',
+    borderRadius: '8px'
+  },
+  precioItemRowCenter: {
+    flex: 1,
+    textAlign: 'center',
+    padding: '10px',
+    backgroundColor: '#f8f9fa',
+    borderRadius: '8px'
+  },
+  precioItemRowRight: {
+    flex: 1,
+    textAlign: 'center',
+    padding: '10px',
+    backgroundColor: '#e8f5e9',
+    borderRadius: '8px',
+    border: '1px solid #0a0a0a'
+  },
+  precioItemRowLabel: {
+    fontSize: '11px',
+    color: '#666',
+    display: 'block',
+    marginBottom: '8px',
+    textTransform: 'uppercase'
+  },
+  precioItemRowValue: {
+    fontSize: '18px',
+    color: '#333',
+    fontWeight: 'bold',
+    display: 'block'
+  },
+  precioItemRowTotal: {
+    fontSize: '22px',
+    color: '#0f0f0f',
+    fontWeight: 'bold',
+    display: 'block'
+  },
   thProducto: {
-    backgroundColor: '#4CAF50', // Marrón
-    color: '#ffffff', // Blanco
+    backgroundColor: '#4CAF50',
+    color: '#ffffff',
     padding: '12px',
     textAlign: 'left',
     fontWeight: 'bold',
     fontSize: '14px',
     borderBottom: '2px solid #4CAF50'
   },
-
   thTamanio: {
     backgroundColor: '#4CAF50',
     color: '#ffffff',
@@ -753,7 +798,6 @@ const styles = {
     fontSize: '14px',
     borderBottom: '2px solid #4CAF50'
   },
-
   thCantidad: {
     backgroundColor: '#4CAF50',
     color: '#ffffff',
@@ -763,7 +807,6 @@ const styles = {
     fontSize: '14px',
     borderBottom: '2px solid #4CAF50'
   },
-
   thPrecio: {
     backgroundColor: '#4CAF50',
     color: '#ffffff',
@@ -773,7 +816,6 @@ const styles = {
     fontSize: '14px',
     borderBottom: '2px solid #4CAF50'
   },
-
   thSubtotal: {
     backgroundColor: '#4CAF50',
     color: '#ffffff',
@@ -783,7 +825,6 @@ const styles = {
     fontSize: '14px',
     borderBottom: '2px solid #4CAF50'
   },
-
   thAcciones: {
     backgroundColor: '#4CAF50',
     color: '#ffffff',
@@ -794,181 +835,56 @@ const styles = {
     borderBottom: '2px solid #4CAF50',
     width: '60px'
   },
-
-  // Estilos para las filas del cuerpo (td)
   trBody: {
     borderBottom: '1px solid #e0e0e0',
     transition: 'background-color 0.3s'
   },
-
-  // Producto - Color marrón
   tdProducto: {
     padding: '12px',
-    color: '#2e2d2d', // Marrón
+    color: '#2e2d2d',
     fontWeight: 'bold',
     fontSize: '14px',
     borderBottom: '1px solid #e0e0e0'
   },
-
-  // Tamaño - Color gris
   tdTamanio: {
     padding: '12px',
-    color: '#2e2d2d', // Gris
+    color: '#2e2d2d',
     fontStyle: 'italic',
     fontSize: '14px',
     borderBottom: '1px solid #e0e0e0'
   },
-
-  // Cantidad - Color azul
   tdCantidad: {
     padding: '12px',
-    color: '#2196F3', // Azul
+    color: '#2196F3',
     fontWeight: 'bold',
     textAlign: 'center',
     fontSize: '14px',
     borderBottom: '1px solid #e0e0e0'
   },
-
-  // Precio Unitario - Color verde
   tdPrecio: {
     padding: '12px',
-    color: '#4CAF50', // Verde
+    color: '#4CAF50',
     fontWeight: '500',
     textAlign: 'center',
     fontSize: '14px',
     borderBottom: '1px solid #e0e0e0'
   },
-
-  // Subtotal - Color naranja con fondo
   tdSubtotal: {
     padding: '12px',
-    color: '#2e2d2d', // Naranja
+    color: '#2e2d2d',
     fontWeight: 'bold',
     textAlign: 'center',
     fontSize: '16px',
     borderBottom: '1px solid #e0e0e0'
   },
-
-  // Acciones - Botón eliminar
   tdAcciones: {
     padding: '12px',
     textAlign: 'center',
     borderBottom: '1px solid #e0e0e0'
-  },
-
-  eliminarItemButton: {
-    background: 'none',
-    border: 'none',
-    fontSize: '18px',
-    cursor: 'pointer',
-    padding: '5px 8px',
-    borderRadius: '5px',
-    transition: 'all 0.3s',
-    color: '#dc3545' // Rojo
-  },
-  precioItemBoxMinimal: {
-    marginBottom: '20px'
-  },
-
-  precioItemCard: {
-    backgroundColor: '#ffffff',
-    borderRadius: '12px',
-    overflow: 'hidden',
-    boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
-    border: '1px solid #e0e0e0'
-  },
-
-  precioItemCardHeader: {
-    backgroundColor: '#4CAF50',
-    padding: '10px 15px',
-    textAlign: 'center'
-  },
-
-  precioItemCardTitle: {
-    color: '#ffffff',
-    fontSize: '14px',
-    fontWeight: 'bold',
-    letterSpacing: '1px'
-  },
-
-  precioItemCardBody: {
-    padding: '15px'
-  },
-
-  precioItemRow: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    gap: '15px'
-  },
-
-  precioItemRowLeft: {
-    flex: 1,
-    textAlign: 'center',
-    padding: '10px',
-    backgroundColor: '#f8f9fa',
-    borderRadius: '8px'
-  },
-
-  precioItemRowCenter: {
-    flex: 1,
-    textAlign: 'center',
-    padding: '10px',
-    backgroundColor: '#f8f9fa',
-    borderRadius: '8px'
-  },
-
-  precioItemRowRight: {
-    flex: 1,
-    textAlign: 'center',
-    padding: '10px',
-    backgroundColor: '#e8f5e9',
-    borderRadius: '8px',
-    border: '1px solid #0a0a0a'
-  },
-
-  precioItemRowLabel: {
-    fontSize: '11px',
-    color: '#666',
-    display: 'block',
-    marginBottom: '8px',
-    textTransform: 'uppercase'
-  },
-
-  precioItemRowValue: {
-    fontSize: '18px',
-    color: '#333',
-    fontWeight: 'bold',
-    display: 'block'
-  },
-
-  precioItemRowTotal: {
-    fontSize: '22px',
-    color: '#0f0f0f',
-    fontWeight: 'bold',
-    display: 'block'
-  },
-
-  logoContainer: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '15px',
-    //boxShadow: '0 2px 10px rgba(0,0,0,0.1)'
-  },
-  logo: {
-    borderRadius: '10px',
-    objectFit: 'contain'
-  },
-  title: {
-    textAlign: 'center',
-    color: '#333',
-    marginBottom: 0,
-    fontSize: '28px'
-  },
-
+  }
 };
 
-// Agregar estilos globales para la tabla
+// Agregar estilos globales
 if (typeof document !== 'undefined') {
   const styleSheet = document.createElement('style');
   styleSheet.textContent = `
@@ -992,6 +908,11 @@ if (typeof document !== 'undefined') {
     .agregarButton:hover, .registrarButton:hover {
       opacity: 0.9;
       transform: translateY(-1px);
+    }
+    textarea:focus {
+      outline: none;
+      border-color: #4CAF50;
+      box-shadow: 0 0 0 2px rgba(76, 175, 80, 0.1);
     }
   `;
   document.head.appendChild(styleSheet);
