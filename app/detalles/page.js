@@ -9,6 +9,7 @@ export default function DetallesPage() {
   const [loading, setLoading] = useState(true);
   const [eliminando, setEliminando] = useState(false);
   const [ventaAEliminar, setVentaAEliminar] = useState(null);
+  const [userRol, setUserRol] = useState('');
   const [estadisticas, setEstadisticas] = useState({
     porTipo: [],
     porTamanio: [],
@@ -22,7 +23,7 @@ export default function DetallesPage() {
   const [ventasRecientes, setVentasRecientes] = useState([]);
   const [fechaInicio, setFechaInicio] = useState('');
   const [fechaFin, setFechaFin] = useState('');
-  const [filtroActivo, setFiltroActivo] = useState(false);
+  const [filtroActivo, setFiltroActivo] = useState(true); // Cambiado a true por defecto
   
   // Estados para el modal de comentarios
   const [modalAbierto, setModalAbierto] = useState(false);
@@ -68,6 +69,24 @@ export default function DetallesPage() {
     1000: '#F44336'
   };
 
+  // Función para obtener el inicio del día actual en formato datetime-local
+  const obtenerInicioDiaActual = () => {
+    const ahora = new Date();
+    const year = ahora.getFullYear();
+    const month = String(ahora.getMonth() + 1).padStart(2, '0');
+    const day = String(ahora.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}T00:00`;
+  };
+
+  // Función para obtener el fin del día actual
+  const obtenerFinDiaActual = () => {
+    const ahora = new Date();
+    const year = ahora.getFullYear();
+    const month = String(ahora.getMonth() + 1).padStart(2, '0');
+    const day = String(ahora.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}T23:59`;
+  };
+
   useEffect(() => {
     const checkAuth = async () => {
       const { data: { session } } = await supabase.auth.getSession();
@@ -75,7 +94,31 @@ export default function DetallesPage() {
         router.push('/login');
         return;
       }
-      cargarEstadisticas();
+      
+      // Obtener el rol del usuario
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const { data: perfil } = await supabase
+          .from('perfiles')
+          .select('rol')
+          .eq('id', user.id)
+          .single();
+        
+        if (perfil) {
+          setUserRol(perfil.rol);
+        }
+      }
+      
+      // Establecer filtro del día actual automáticamente
+      const inicioDia = obtenerInicioDiaActual();
+      const finDia = obtenerFinDiaActual();
+      
+      setFechaInicio(inicioDia);
+      setFechaFin(finDia);
+      setFiltroActivo(true);
+      
+      // Cargar estadísticas con las fechas del día actual
+      await cargarEstadisticas(inicioDia, finDia);
     };
     checkAuth();
   }, []);
@@ -95,16 +138,20 @@ export default function DetallesPage() {
     return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}-05:00`;
   };
 
-  const cargarEstadisticas = async () => {
+  const cargarEstadisticas = async (inicio = null, fin = null) => {
     setLoading(true);
     try {
       let query = supabase
         .from('ventas')
         .select('*');
       
-      if (filtroActivo && fechaInicio && fechaFin) {
-        const inicioFiltro = ajustarFechaParaFiltro(fechaInicio);
-        const finFiltro = ajustarFechaParaFiltro(fechaFin);
+      // Usar las fechas pasadas como parámetro o las del estado
+      const fechaInicioUsar = inicio !== null ? inicio : fechaInicio;
+      const fechaFinUsar = fin !== null ? fin : fechaFin;
+      
+      if (filtroActivo && fechaInicioUsar && fechaFinUsar) {
+        const inicioFiltro = ajustarFechaParaFiltro(fechaInicioUsar);
+        const finFiltro = ajustarFechaParaFiltro(fechaFinUsar);
         
         query = query
           .gte('fecha', inicioFiltro)
@@ -329,7 +376,7 @@ export default function DetallesPage() {
     }
     
     setFiltroActivo(true);
-    cargarEstadisticas();
+    cargarEstadisticas(fechaInicio, fechaFin);
   };
 
   const limpiarFiltros = () => {
@@ -356,7 +403,7 @@ export default function DetallesPage() {
       if (error) throw error;
       
       alert('✅ Venta eliminada correctamente');
-      cargarEstadisticas();
+      cargarEstadisticas(fechaInicio, fechaFin);
       
     } catch (error) {
       console.error('Error al eliminar:', error);
@@ -396,7 +443,7 @@ export default function DetallesPage() {
   if (loading) {
     return (
       <div style={styles.loadingContainer}>
-        <div style={styles.loader}>Cargando estadísticas...</div>
+        <div style={styles.loader}>Cargando estadísticas del día actual...</div>
       </div>
     );
   }
@@ -436,11 +483,9 @@ export default function DetallesPage() {
           <button onClick={aplicarFiltros} style={styles.aplicarButton}>
             Aplicar Filtro
           </button>
-          {filtroActivo && (
-            <button onClick={limpiarFiltros} style={styles.limpiarButton}>
-              Limpiar
-            </button>
-          )}
+          <button onClick={limpiarFiltros} style={styles.limpiarButton}>
+            Limpiar
+          </button>
         </div>
         {filtroActivo && (
           <div style={styles.filtroInfo}>
@@ -651,13 +696,13 @@ export default function DetallesPage() {
         )}
       </div>
 
-      {/* Últimas Ventas con opción de eliminar y comentarios */}
+      {/* Últimas Ventas con columna Vendedor y control de permisos */}
       <div style={styles.card}>
         <div style={styles.ventasHeader}>
           <h2 style={styles.subtitle}>🕐 Últimas Ventas</h2>
           <div style={styles.ventasHeaderButtons}>
             <button 
-              onClick={() => cargarEstadisticas()} 
+              onClick={() => cargarEstadisticas(fechaInicio, fechaFin)} 
               style={styles.refreshButton}
               title="Actualizar lista"
             >
@@ -670,6 +715,7 @@ export default function DetallesPage() {
             <thead>
               <tr>
                 <th>Fecha</th>
+                <th>Vendedor</th>
                 <th>Tipo</th>
                 <th>Tamaño</th>
                 <th>Cantidad</th>
@@ -684,6 +730,11 @@ export default function DetallesPage() {
               {ventasRecientes.map((venta) => (
                 <tr key={venta.id}>
                   <td>{formatearFecha(venta.fecha)}</td>
+                  <td>
+                    <span style={styles.vendedorNombre}>
+                      {venta.vendedor_nombre || venta.user_id?.substring(0, 8) || 'N/A'}
+                    </span>
+                  </td>
                   <td>{venta.tipo_cerveza}</td>
                   <td>{venta.cantidad_vaso} ml</td>
                   <td>{venta.cantidad}</td>
@@ -712,20 +763,27 @@ export default function DetallesPage() {
                     )}
                   </td>
                   <td style={styles.accionesCell}>
-                    <button
-                      onClick={() => eliminarVenta(venta.id)}
-                      disabled={eliminando && ventaAEliminar === venta.id}
-                      style={styles.eliminarButton}
-                      title="Eliminar venta"
-                    >
-                      {eliminando && ventaAEliminar === venta.id ? '⏳' : '🗑️ Eliminar'}
-                    </button>
+                    {/* Solo admin puede eliminar */}
+                    {userRol === 'admin' ? (
+                      <button
+                        onClick={() => eliminarVenta(venta.id)}
+                        disabled={eliminando && ventaAEliminar === venta.id}
+                        style={styles.eliminarButton}
+                        title="Eliminar venta"
+                      >
+                        {eliminando && ventaAEliminar === venta.id ? '⏳' : '🗑️ Eliminar'}
+                      </button>
+                    ) : (
+                      <span style={styles.sinPermiso} title="Solo administradores pueden eliminar">
+                        🔒 Solo Admin
+                      </span>
+                    )}
                   </td>
                 </tr>
               ))}
               {ventasRecientes.length === 0 && (
                 <tr>
-                  <td colSpan="9" style={styles.noData}>No hay ventas registradas</td>
+                  <td colSpan="10" style={styles.noData}>No hay ventas registradas en el día actual</td>
                 </tr>
               )}
             </tbody>
@@ -748,6 +806,7 @@ export default function DetallesPage() {
             <div style={styles.modalBody}>
               <div style={styles.modalInfo}>
                 <p><strong>📅 Fecha:</strong> {ventaSeleccionada && formatearFecha(ventaSeleccionada.fecha)}</p>
+                <p><strong>👤 Vendedor:</strong> {ventaSeleccionada?.vendedor_nombre || 'N/A'}</p>
                 <p><strong>🍺 Producto:</strong> {ventaSeleccionada?.tipo_cerveza} - {ventaSeleccionada?.cantidad_vaso} ml</p>
                 <p><strong>💰 Total:</strong> ${ventaSeleccionada && (ventaSeleccionada.total || ventaSeleccionada.cantidad * ventaSeleccionada.precio_unitario).toFixed(2)}</p>
               </div>
@@ -1150,6 +1209,20 @@ const styles = {
     fontSize: '12px',
     fontWeight: 'bold',
     transition: 'background-color 0.3s'
+  },
+  sinPermiso: {
+    fontSize: '11px',
+    color: '#999',
+    fontStyle: 'italic'
+  },
+  vendedorNombre: {
+    fontWeight: '500',
+    color: '#4a6741',
+    backgroundColor: '#e8f5e9',
+    padding: '4px 8px',
+    borderRadius: '12px',
+    fontSize: '12px',
+    display: 'inline-block'
   },
   // Estilos del modal
   modalOverlay: {
