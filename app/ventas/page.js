@@ -7,6 +7,8 @@ import { useRouter } from 'next/navigation';
 export default function VentasPage() {
   const router = useRouter();
   const [user, setUser] = useState(null);
+  const [userNombre, setUserNombre] = useState('');
+  const [userRol, setUserRol] = useState('');
   const [carrito, setCarrito] = useState([]);
   const [itemActual, setItemActual] = useState({
     tipo_cerveza: '',
@@ -17,26 +19,98 @@ export default function VentasPage() {
 
   const [totalCarrito, setTotalCarrito] = useState(0);
   const [metodoPago, setMetodoPago] = useState('efectivo');
-  const [comentarioGeneral, setComentarioGeneral] = useState(''); // Nuevo estado para comentario
+  const [comentarioGeneral, setComentarioGeneral] = useState('');
   const [loading, setLoading] = useState(false);
   const [mensaje, setMensaje] = useState({ tipo: '', texto: '' });
 
-  // Verificar autenticación
+  // Verificar autenticación y obtener datos del usuario
   useEffect(() => {
     const checkAuth = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        router.push('/login');
-        return;
-      }
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) {
+          router.push('/login');
+          return;
+        }
 
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
+
         setUser(user);
+
+        // Intentar obtener perfil
+        const { data: perfil, error } = await supabase
+          .from('perfiles')
+          .select('nombre, rol')
+          .eq('id', user.id)
+          .single();
+
+        if (perfil) {
+          setUserNombre(perfil.nombre || 'Usuario');
+          setUserRol(perfil.rol || 'vendedor');
+          console.log('✅ Perfil cargado:', perfil);
+        }
+        else if (error?.code === 'PGRST116') {
+          // Perfil no existe → crearlo
+          console.log('Perfil no existe, creando...');
+
+          const nombreDefault = user.user_metadata?.nombre
+            || user.user_metadata?.full_name
+            || user.email?.split('@')[0]
+            || 'Vendedor';
+
+          const { error: insertError } = await supabase
+            .from('perfiles')
+            .insert({
+              id: user.id,
+              nombre: nombreDefault,
+              rol: 'vendedor'
+            });
+
+          if (insertError) {
+            console.error('Error al crear perfil:', insertError);
+            setUserNombre(nombreDefault);
+            setUserRol('vendedor');
+          } else {
+            // Leer el perfil recién creado
+            const { data: nuevoPerfil } = await supabase
+              .from('perfiles')
+              .select('nombre, rol')
+              .eq('id', user.id)
+              .single();
+
+            if (nuevoPerfil) {
+              setUserNombre(nuevoPerfil.nombre);
+              setUserRol(nuevoPerfil.rol);
+            }
+          }
+        }
+        else {
+          console.error('Error al obtener perfil:', error);
+          // Fallback
+          const nombreFallback = user.user_metadata?.nombre
+            || user.email?.split('@')[0]
+            || 'Usuario';
+          setUserNombre(nombreFallback);
+          setUserRol('vendedor');
+        }
+      } catch (err) {
+        console.error('Error en checkAuth:', err);
+        setUserNombre('Usuario');
+        setUserRol('vendedor');
       }
     };
+
     checkAuth();
   }, [router]);
+
+  // Cerrar sesión
+  const handleLogout = async () => {
+    if (confirm('¿Estás seguro de que deseas cerrar sesión?')) {
+      await supabase.auth.signOut();
+      router.push('/login');
+    }
+  };
 
   // Calcular total del carrito
   useEffect(() => {
@@ -116,7 +190,7 @@ export default function VentasPage() {
     setCarrito([...carrito, nuevoItem]);
     setMensaje({ tipo: 'exito', texto: '✅ Producto agregado al carrito' });
 
-    // Limpiar selección actual pero mantener el tamaño por defecto
+    // Limpiar selección actual
     setItemActual({
       tipo_cerveza: '',
       cantidad_vaso: '',
@@ -124,7 +198,6 @@ export default function VentasPage() {
       precio_unitario: 0
     });
 
-    // Limpiar mensaje después de 2 segundos
     setTimeout(() => {
       if (mensaje.tipo === 'exito') setMensaje({ tipo: '', texto: '' });
     }, 2000);
@@ -183,17 +256,21 @@ export default function VentasPage() {
       // Crear un registro por cada producto en el carrito
       const ventasData = carrito.map(item => ({
         user_id: user.id,
+        vendedor_nombre: userNombre, // ← Se guarda el nombre del vendedor
         tipo_cerveza: item.tipo_cerveza,
         cantidad_vaso: item.cantidad_vaso,
         cantidad: item.cantidad,
         precio_unitario: item.precio_unitario,
         metodo_pago: metodoPago,
         fecha: getFechaEcuador(),
-        comentario: comentarioGeneral.trim() || null, // Agregar comentario a cada venta
+        comentario: comentarioGeneral.trim() || null,
         cantidad_total_negra: item.tipo_cerveza === 'Negra' ? item.cantidad : 0,
         cantidad_total_rubia: item.tipo_cerveza === 'Rubia' ? item.cantidad : 0,
         cantidad_total_roja: item.tipo_cerveza === 'Roja' ? item.cantidad : 0
       }));
+
+      console.log('Registrando venta con vendedor:', userNombre);
+      console.log('Datos a insertar:', ventasData);
 
       const { error } = await supabase
         .from('ventas')
@@ -203,13 +280,13 @@ export default function VentasPage() {
 
       setMensaje({
         tipo: 'exito',
-        texto: `✅ Venta registrada exitosamente! Total: $${totalCarrito.toFixed(2)} USD`
+        texto: `✅ Venta registrada exitosamente! Vendedor: ${userNombre} - Total: $${totalCarrito.toFixed(2)} USD`
       });
 
       // Limpiar carrito y comentario
       setCarrito([]);
       setMetodoPago('efectivo');
-      setComentarioGeneral(''); // Limpiar comentario después de registrar
+      setComentarioGeneral('');
 
     } catch (error) {
       console.error('Error:', error);
@@ -225,11 +302,24 @@ export default function VentasPage() {
   return (
     <div style={styles.container}>
       <div style={styles.card}>
-        {user && (
+        {/* Header con información de usuario */}
+        <div style={styles.headerUsuario}>
           <div style={styles.userInfo}>
-            👤 Usuario: {user.email}
+            <div style={styles.userAvatar}>
+              {userNombre ? userNombre.charAt(0).toUpperCase() : '?'}
+            </div>
+            <div style={styles.userDetails}>
+              <span style={styles.userName}>{userNombre || 'Cargando...'}</span>
+              <span style={styles.userRole}>
+                {userRol === 'admin' ? 'Administrador' :
+                  userRol === 'supervisor' ? 'Supervisor' : 'Vendedor'}
+              </span>
+            </div>
           </div>
-        )}
+          <button onClick={handleLogout} style={styles.logoutButton} title="Cerrar sesión">
+            🚪 Cerrar Sesión
+          </button>
+        </div>
 
         {mensaje.texto && (
           <div style={{
@@ -242,10 +332,11 @@ export default function VentasPage() {
           </div>
         )}
 
-        {/* TODO DENTRO DE UN MISMO CONTENEDOR */}
+        {/* Resto del contenido - igual que antes */}
         <div style={styles.contenedorUnico}>
           <h3 style={styles.seccionTitulo}>🍺 SHITAKE`N BEER🍺</h3>
 
+          {/* ... el resto de tu formulario se mantiene igual ... */}
           <div style={styles.formGroup}>
             <label style={styles.label}>🍺 Tipo de Cerveza</label>
             <div style={styles.buttonGroup}>
@@ -332,7 +423,6 @@ export default function VentasPage() {
             </div>
           </div>
 
-          {/* Campo de comentario */}
           <div style={styles.formGroup}>
             <label style={styles.label}>💬 Comentario (Opcional)</label>
             <textarea
@@ -430,7 +520,6 @@ export default function VentasPage() {
                   <span style={styles.totalValor}>${totalCarrito.toFixed(2)} USD</span>
                 </div>
 
-                {/* Mostrar comentario si existe */}
                 {comentarioGeneral && (
                   <div style={styles.comentarioPreview}>
                     <strong>💬 Comentario del pedido:</strong> {comentarioGeneral}
@@ -457,6 +546,7 @@ export default function VentasPage() {
   );
 }
 
+// Los estilos se mantienen igual que en tu código original...
 const styles = {
   container: {
     minHeight: '100vh',
@@ -482,26 +572,74 @@ const styles = {
     position: 'relative',
     overflow: 'hidden'
   },
+  headerUsuario: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: '20px',
+    paddingBottom: '15px',
+    borderBottom: '1px solid rgba(0,0,0,0.1)'
+  },
+  userInfo: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '12px'
+  },
+  userAvatar: {
+    width: '45px',
+    height: '45px',
+    borderRadius: '50%',
+    backgroundColor: '#8B4513',
+    color: 'white',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    fontSize: '20px',
+    fontWeight: 'bold'
+  },
+  userDetails: {
+    display: 'flex',
+    flexDirection: 'column'
+  },
+  userName: {
+    fontSize: '20px',
+    fontWeight: 'bold',
+    color: '#333'
+  },
+  userEmail: {
+    fontSize: '11px',
+    color: '#888',
+    marginTop: '2px'
+  },
+  userRole: {
+    fontSize: '15px',
+    color: '#020202',
+    marginTop: '2px',
+    fontWeight: '500'
+  },
+  logoutButton: {
+    padding: '8px 16px',
+    backgroundColor: '#dc3545',
+    color: 'white',
+    border: 'none',
+    borderRadius: '8px',
+    cursor: 'pointer',
+    fontSize: '14px',
+    fontWeight: 'bold',
+    transition: 'all 0.3s'
+  },
   contenedorUnico: {
     display: 'flex',
     flexDirection: 'column',
     gap: '2px',
     width: '100%'
   },
-  userInfo: {
-    backgroundColor: '#e3f2fd',
-    padding: '10px',
-    borderRadius: '8px',
-    marginBottom: '20px',
-    textAlign: 'center',
-    fontSize: '14px',
-    color: '#1976d2'
-  },
   seccionTitulo: {
     fontSize: '20px',
     fontWeight: 'bold',
     color: '#080808',
-    marginBottom: '5px'
+    marginBottom: '5px',
+    textAlign: 'center'
   },
   formGroup: {
     marginBottom: '20px'
@@ -576,12 +714,6 @@ const styles = {
     fontFamily: 'inherit',
     resize: 'vertical',
     backgroundColor: 'white'
-  },
-  comentarioInfo: {
-    marginTop: '5px',
-    fontSize: '12px',
-    color: '#666',
-    fontStyle: 'italic'
   },
   comentarioPreview: {
     marginTop: '10px',
@@ -907,6 +1039,10 @@ if (typeof document !== 'undefined') {
     }
     .agregarButton:hover, .registrarButton:hover {
       opacity: 0.9;
+      transform: translateY(-1px);
+    }
+    .logoutButton:hover {
+      background-color: #c82333;
       transform: translateY(-1px);
     }
     textarea:focus {
