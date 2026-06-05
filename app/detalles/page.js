@@ -35,7 +35,7 @@ export default function DetallesPage() {
   const tamanios = [
     { ml: 350, nombre: '350 ml', precio: 2.50 },
     { ml: 500, nombre: '500 ml', precio: 3.50 },
-    { ml: 1000, nombre: '1000 ml', precio: 7.00 }
+    { ml: 420, nombre: '420 ml', precio: 5.00 }
   ];
 
   // Tipos de cerveza
