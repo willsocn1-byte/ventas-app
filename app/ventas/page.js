@@ -129,7 +129,7 @@ export default function VentasPage() {
   const opcionesVaso = [
     { ml: 350, precio: 2.50, label: '350 ml - $2.50' },
     { ml: 500, precio: 3.50, label: '500 ml - $3.50' },
-    { ml: 1000, precio: 7.00, label: '1000 ml - $7.00' }
+    { ml: 420, precio: 5.00, label: 'Botella - $5.00' }
   ];
 
   // Métodos de pago
