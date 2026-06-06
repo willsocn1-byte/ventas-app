@@ -33,8 +33,8 @@ export default function DetallesPage() {
 
   // Definición de tamaños
   const tamanios = [
-    { ml: 350, nombre: '350 ml', precio: 2.50 },
-    { ml: 500, nombre: '500 ml', precio: 3.50 },
+    { ml: 350, nombre: '350 ml', precio: 3.00 },
+    { ml: 500, nombre: '500 ml', precio: 4.00 },
     { ml: 420, nombre: '420 ml', precio: 5.00 }
   ];
 
