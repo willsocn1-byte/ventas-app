@@ -127,8 +127,8 @@ export default function VentasPage() {
 
   // Opciones de cantidad de vaso y precios
   const opcionesVaso = [
-    { ml: 350, precio: 2.50, label: '350 ml - $2.50' },
-    { ml: 500, precio: 3.50, label: '500 ml - $3.50' },
+    { ml: 350, precio: 3.00, label: '350 ml - $3.00' },
+    { ml: 500, precio: 4.00, label: '500 ml - $4.00' },
     { ml: 420, precio: 5.00, label: 'Botella - $5.00' }
   ];
 
