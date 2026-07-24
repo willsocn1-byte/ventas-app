@@ -12,7 +12,7 @@ export default function VentasPage() {
   const [carrito, setCarrito] = useState([]);
   const [itemActual, setItemActual] = useState({
     tipo_cerveza: '',
-    cantidad_vaso: '',
+    presentacion: '',
     cantidad: 1,
     precio_unitario: 0
   });
@@ -38,7 +38,6 @@ export default function VentasPage() {
 
         setUser(user);
 
-        // Intentar obtener perfil
         const { data: perfil, error } = await supabase
           .from('perfiles')
           .select('nombre, rol')
@@ -51,9 +50,7 @@ export default function VentasPage() {
           console.log('✅ Perfil cargado:', perfil);
         }
         else if (error?.code === 'PGRST116') {
-          // Perfil no existe → crearlo
           console.log('Perfil no existe, creando...');
-
           const nombreDefault = user.user_metadata?.nombre
             || user.user_metadata?.full_name
             || user.email?.split('@')[0]
@@ -72,7 +69,6 @@ export default function VentasPage() {
             setUserNombre(nombreDefault);
             setUserRol('vendedor');
           } else {
-            // Leer el perfil recién creado
             const { data: nuevoPerfil } = await supabase
               .from('perfiles')
               .select('nombre, rol')
@@ -87,7 +83,6 @@ export default function VentasPage() {
         }
         else {
           console.error('Error al obtener perfil:', error);
-          // Fallback
           const nombreFallback = user.user_metadata?.nombre
             || user.email?.split('@')[0]
             || 'Usuario';
@@ -104,7 +99,6 @@ export default function VentasPage() {
     checkAuth();
   }, [router]);
 
-  // Cerrar sesión
   const handleLogout = async () => {
     if (confirm('¿Estás seguro de que deseas cerrar sesión?')) {
       await supabase.auth.signOut();
@@ -112,42 +106,39 @@ export default function VentasPage() {
     }
   };
 
-  // Calcular total del carrito
   useEffect(() => {
     const nuevoTotal = carrito.reduce((sum, item) => sum + (item.precio_unitario * item.cantidad), 0);
     setTotalCarrito(nuevoTotal);
   }, [carrito]);
 
-  // Tipos de cerveza
+  // Tipos de cerveza para el select
   const tiposCerveza = [
     { id: 'Negra', nombre: 'Cerveza Negra', color: '#270f00' },
     { id: 'Rubia', nombre: 'Cerveza Rubia', color: '#F4A460' },
+    { id: 'Hidromiel', nombre: 'Hidromiel', color: '#ecddd1' },
+    { id: 'Michelada', nombre: 'Michelada', color: '#ecddd1' },
     { id: 'Roja', nombre: 'Cerveza Roja', color: '#CD5C5C' }
   ];
 
-  // Opciones de cantidad de vaso y precios
-  const opcionesVaso = [
-    { ml: 350, precio: 3.00, label: '350 ml - $3.00' },
-    { ml: 500, precio: 4.00, label: '500 ml - $4.00' },
-    { ml: 420, precio: 5.00, label: 'Botella - $5.00' }
+  // Opciones de presentación: Vaso 500ml - $4.00, Botella 420ml - $5.00
+  const opcionesPresentacion = [
+    { id: 'Vaso 500 ml', precio: 4.00, label: '🍺 Vaso 500 ml - $4.00' },
+    { id: 'Botella 420 ml', precio: 5.00, label: '🍾 Botella 420 ml - $5.00' }
   ];
 
-  // Métodos de pago
   const metodosPago = [
     { id: 'efectivo', nombre: 'Efectivo', icon: '💰' },
     { id: 'transferencia', nombre: 'Transferencia', icon: '🏦' }
   ];
 
-  // Actualizar precio unitario basado en cantidad de vaso
-  const handleVasoChange = (ml, precio) => {
+  const handlePresentacionChange = (id, precio) => {
     setItemActual({
       ...itemActual,
-      cantidad_vaso: ml,
+      presentacion: id,
       precio_unitario: precio
     });
   };
 
-  // Aumentar cantidad del item actual
   const aumentarCantidad = () => {
     setItemActual({
       ...itemActual,
@@ -155,7 +146,6 @@ export default function VentasPage() {
     });
   };
 
-  // Disminuir cantidad del item actual
   const disminuirCantidad = () => {
     if (itemActual.cantidad > 1) {
       setItemActual({
@@ -165,15 +155,14 @@ export default function VentasPage() {
     }
   };
 
-  // Agregar item al carrito
   const agregarAlCarrito = () => {
     if (!itemActual.tipo_cerveza) {
       setMensaje({ tipo: 'error', texto: '❌ Por favor selecciona un tipo de cerveza' });
       return;
     }
 
-    if (!itemActual.cantidad_vaso) {
-      setMensaje({ tipo: 'error', texto: '❌ Por favor selecciona el tamaño del vaso' });
+    if (!itemActual.presentacion) {
+      setMensaje({ tipo: 'error', texto: '❌ Por favor selecciona la presentación' });
       return;
     }
 
@@ -181,7 +170,7 @@ export default function VentasPage() {
       id: Date.now(),
       tipo_cerveza: itemActual.tipo_cerveza,
       tipo_nombre: tiposCerveza.find(t => t.id === itemActual.tipo_cerveza)?.nombre,
-      cantidad_vaso: itemActual.cantidad_vaso,
+      presentacion: itemActual.presentacion,
       cantidad: itemActual.cantidad,
       precio_unitario: itemActual.precio_unitario,
       subtotal: itemActual.precio_unitario * itemActual.cantidad
@@ -190,10 +179,9 @@ export default function VentasPage() {
     setCarrito([...carrito, nuevoItem]);
     setMensaje({ tipo: 'exito', texto: '✅ Producto agregado al carrito' });
 
-    // Limpiar selección actual
     setItemActual({
       tipo_cerveza: '',
-      cantidad_vaso: '',
+      presentacion: '',
       cantidad: 1,
       precio_unitario: 0
     });
@@ -203,7 +191,6 @@ export default function VentasPage() {
     }, 2000);
   };
 
-  // Eliminar item del carrito
   const eliminarDelCarrito = (id) => {
     setCarrito(carrito.filter(item => item.id !== id));
     setMensaje({ tipo: 'exito', texto: '🗑️ Producto eliminado del carrito' });
@@ -212,7 +199,6 @@ export default function VentasPage() {
     }, 1500);
   };
 
-  // Vaciar carrito completo
   const vaciarCarrito = () => {
     if (carrito.length === 0) return;
     if (confirm('¿Estás seguro de que deseas vaciar todo el carrito?')) {
@@ -224,7 +210,6 @@ export default function VentasPage() {
     }
   };
 
-  // Registrar venta completa
   const registrarVenta = async () => {
     if (!user) {
       setMensaje({ tipo: 'error', texto: '❌ Debes iniciar sesión' });
@@ -253,43 +238,43 @@ export default function VentasPage() {
     };
 
     try {
-      // Crear un registro por cada producto en el carrito
       const ventasData = carrito.map(item => ({
         user_id: user.id,
-        vendedor_nombre: userNombre, // ← Se guarda el nombre del vendedor
+        vendedor_nombre: userNombre,
         tipo_cerveza: item.tipo_cerveza,
-        cantidad_vaso: item.cantidad_vaso,
+        presentacion: item.presentacion,
         cantidad: item.cantidad,
         precio_unitario: item.precio_unitario,
         metodo_pago: metodoPago,
         fecha: getFechaEcuador(),
-        comentario: comentarioGeneral.trim() || null,
-        cantidad_total_negra: item.tipo_cerveza === 'Negra' ? item.cantidad : 0,
-        cantidad_total_rubia: item.tipo_cerveza === 'Rubia' ? item.cantidad : 0,
-        cantidad_total_roja: item.tipo_cerveza === 'Roja' ? item.cantidad : 0
+        comentario: comentarioGeneral.trim() || null
       }));
 
-      console.log('Registrando venta con vendedor:', userNombre);
-      console.log('Datos a insertar:', ventasData);
+      console.log('📝 Datos a insertar:', JSON.stringify(ventasData, null, 2));
 
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('ventas')
-        .insert(ventasData);
+        .insert(ventasData)
+        .select();
 
-      if (error) throw error;
+      if (error) {
+        console.error('❌ Error de Supabase:', error);
+        throw error;
+      }
+
+      console.log('✅ Venta insertada:', data);
 
       setMensaje({
         tipo: 'exito',
         texto: `✅ Venta registrada exitosamente! Vendedor: ${userNombre} - Total: $${totalCarrito.toFixed(2)} USD`
       });
 
-      // Limpiar carrito y comentario
       setCarrito([]);
       setMetodoPago('efectivo');
       setComentarioGeneral('');
 
     } catch (error) {
-      console.error('Error:', error);
+      console.error('❌ Error completo:', error);
       setMensaje({
         tipo: 'error',
         texto: `❌ Error al registrar venta: ${error.message}`
@@ -302,7 +287,6 @@ export default function VentasPage() {
   return (
     <div style={styles.container}>
       <div style={styles.card}>
-        {/* Header con información de usuario */}
         <div style={styles.headerUsuario}>
           <div style={styles.userInfo}>
             <div style={styles.userAvatar}>
@@ -332,44 +316,48 @@ export default function VentasPage() {
           </div>
         )}
 
-        {/* Resto del contenido - igual que antes */}
         <div style={styles.contenedorUnico}>
           <h3 style={styles.seccionTitulo}>🍺 SHITAKE`N BEER🍺</h3>
 
-          {/* ... el resto de tu formulario se mantiene igual ... */}
+          {/* Tipo de Cerveza como menú desplegable */}
           <div style={styles.formGroup}>
             <label style={styles.label}>🍺 Tipo de Cerveza</label>
-            <div style={styles.buttonGroup}>
-              {tiposCerveza.map((tipo) => (
-                <button
-                  key={tipo.id}
-                  type="button"
-                  onClick={() => setItemActual({ ...itemActual, tipo_cerveza: tipo.id })}
-                  style={{
-                    ...styles.optionButton,
-                    backgroundColor: itemActual.tipo_cerveza === tipo.id ? tipo.color : '#f0f0f0',
-                    color: itemActual.tipo_cerveza === tipo.id ? 'white' : '#333',
-                    borderColor: tipo.color
-                  }}
-                >
-                  {tipo.nombre}
-                </button>
-              ))}
+            <div style={styles.selectWrapper}>
+              <select
+                value={itemActual.tipo_cerveza}
+                onChange={(e) => {
+                  setItemActual({ 
+                    ...itemActual, 
+                    tipo_cerveza: e.target.value 
+                  });
+                }}
+                style={styles.selectInput}
+                required
+              >
+                <option value="" disabled>Selecciona un tipo de cerveza</option>
+                {tiposCerveza.map((tipo) => (
+                  <option key={tipo.id} value={tipo.id}>
+                    {tipo.nombre}
+                  </option>
+                ))}
+              </select>
+              <div style={styles.selectArrow}>▼</div>
             </div>
           </div>
 
+          {/* Presentación - Vaso o Botella */}
           <div style={styles.formGroup}>
-            <label style={styles.label}>🥤 Tamaño del Vaso</label>
+            <label style={styles.label}>🍾 Presentación</label>
             <div style={styles.buttonGroup}>
-              {opcionesVaso.map((opcion) => (
+              {opcionesPresentacion.map((opcion) => (
                 <button
-                  key={opcion.ml}
+                  key={opcion.id}
                   type="button"
-                  onClick={() => handleVasoChange(opcion.ml, opcion.precio)}
+                  onClick={() => handlePresentacionChange(opcion.id, opcion.precio)}
                   style={{
                     ...styles.optionButton,
-                    backgroundColor: itemActual.cantidad_vaso === opcion.ml ? '#4CAF50' : '#f0f0f0',
-                    color: itemActual.cantidad_vaso === opcion.ml ? 'white' : '#333'
+                    backgroundColor: itemActual.presentacion === opcion.id ? '#4CAF50' : '#f0f0f0',
+                    color: itemActual.presentacion === opcion.id ? 'white' : '#333'
                   }}
                 >
                   {opcion.label}
@@ -464,7 +452,6 @@ export default function VentasPage() {
             ➕ Agregar 🍺
           </button>
 
-          {/* Carrito de compras */}
           <div style={styles.carritoWrapper}>
             <div style={styles.carritoHeader}>
               <h3 style={styles.seccionTitulo}>🛒 Carrito Cervecero 🍺</h3>
@@ -486,7 +473,7 @@ export default function VentasPage() {
                     <thead>
                       <tr>
                         <th style={styles.thProducto}>Producto</th>
-                        <th style={styles.thTamanio}>Tamaño</th>
+                        <th style={styles.thPresentacion}>Presentación</th>
                         <th style={styles.thCantidad}>Cantidad</th>
                         <th style={styles.thPrecio}>Precio Unit.</th>
                         <th style={styles.thSubtotal}>Subtotal</th>
@@ -497,7 +484,7 @@ export default function VentasPage() {
                       {carrito.map((item) => (
                         <tr key={item.id} style={styles.trBody}>
                           <td style={styles.tdProducto}>{item.tipo_nombre}</td>
-                          <td style={styles.tdTamanio}>{item.cantidad_vaso} ml</td>
+                          <td style={styles.tdPresentacion}>{item.presentacion}</td>
                           <td style={styles.tdCantidad}>{item.cantidad}</td>
                           <td style={styles.tdPrecio}>${item.precio_unitario.toFixed(2)}</td>
                           <td style={styles.tdSubtotal}>${item.subtotal.toFixed(2)}</td>
@@ -546,7 +533,6 @@ export default function VentasPage() {
   );
 }
 
-// Los estilos se mantienen igual que en tu código original...
 const styles = {
   container: {
     minHeight: '100vh',
@@ -650,6 +636,36 @@ const styles = {
     fontWeight: 'bold',
     color: '#0a0a0a',
     fontSize: '20px'
+  },
+  selectWrapper: {
+    position: 'relative',
+    width: '100%',
+    maxWidth: '400px'
+  },
+  selectInput: {
+    width: '100%',
+    padding: '14px 20px',
+    border: '2px solid #4CAF50',
+    borderRadius: '8px',
+    fontSize: '16px',
+    fontWeight: '500',
+    backgroundColor: 'white',
+    color: '#333',
+    appearance: 'none',
+    WebkitAppearance: 'none',
+    MozAppearance: 'none',
+    cursor: 'pointer',
+    transition: 'all 0.3s ease',
+    fontFamily: 'inherit'
+  },
+  selectArrow: {
+    position: 'absolute',
+    right: '15px',
+    top: '50%',
+    transform: 'translateY(-50%)',
+    fontSize: '14px',
+    color: '#4CAF50',
+    pointerEvents: 'none'
   },
   buttonGroup: {
     display: 'flex',
@@ -921,7 +937,7 @@ const styles = {
     fontSize: '14px',
     borderBottom: '2px solid #4CAF50'
   },
-  thTamanio: {
+  thPresentacion: {
     backgroundColor: '#4CAF50',
     color: '#ffffff',
     padding: '12px',
@@ -978,7 +994,7 @@ const styles = {
     fontSize: '14px',
     borderBottom: '1px solid #e0e0e0'
   },
-  tdTamanio: {
+  tdPresentacion: {
     padding: '12px',
     color: '#2e2d2d',
     fontStyle: 'italic',
@@ -1049,6 +1065,17 @@ if (typeof document !== 'undefined') {
       outline: none;
       border-color: #4CAF50;
       box-shadow: 0 0 0 2px rgba(76, 175, 80, 0.1);
+    }
+    .selectInput:focus {
+      outline: none;
+      border-color: #2196F3;
+      box-shadow: 0 0 0 3px rgba(33, 150, 243, 0.2);
+    }
+    .selectInput:hover {
+      border-color: #2196F3;
+    }
+    .selectWrapper {
+      position: relative;
     }
   `;
   document.head.appendChild(styleSheet);
