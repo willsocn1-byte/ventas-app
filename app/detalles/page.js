@@ -12,18 +12,18 @@ export default function DetallesPage() {
   const [userRol, setUserRol] = useState('');
   const [estadisticas, setEstadisticas] = useState({
     porTipo: [],
-    porTamanio: [],
-    matrizTipoTamanio: [],
+    porPresentacion: [],
+    matrizTipoPresentacion: [],
     matrizMetodosPago: [],
     totalGeneral: 0,
-    totalVasos: 0,
+    totalUnidades: 0,
     totalEfectivo: 0,
     totalTransferencia: 0
   });
   const [ventasRecientes, setVentasRecientes] = useState([]);
   const [fechaInicio, setFechaInicio] = useState('');
   const [fechaFin, setFechaFin] = useState('');
-  const [filtroActivo, setFiltroActivo] = useState(true); // Cambiado a true por defecto
+  const [filtroActivo, setFiltroActivo] = useState(true);
   
   // Estados para el modal de comentarios
   const [modalAbierto, setModalAbierto] = useState(false);
@@ -31,15 +31,14 @@ export default function DetallesPage() {
   const [comentario, setComentario] = useState('');
   const [guardandoComentario, setGuardandoComentario] = useState(false);
 
-  // Definición de tamaños
-  const tamanios = [
-    { ml: 350, nombre: '350 ml', precio: 3.00 },
-    { ml: 500, nombre: '500 ml', precio: 4.00 },
-    { ml: 420, nombre: '420 ml', precio: 5.00 }
+  // Definición de presentaciones
+  const presentaciones = [
+    { id: 'Vaso 500 ml', nombre: 'Vaso 500 ml', precio: 4.00 },
+    { id: 'Botella 420 ml', nombre: 'Botella 420 ml', precio: 5.00 }
   ];
 
   // Tipos de cerveza
-  const tiposCerveza = ['Negra', 'Rubia', 'Roja', 'Otra'];
+  const tiposCerveza = ['Negra', 'Rubia', 'Roja', 'Michelada', 'Hidromiel'];
 
   // Métodos de pago
   const metodosPago = ['efectivo', 'transferencia'];
@@ -59,14 +58,14 @@ export default function DetallesPage() {
     'Negra': '#8B4513',
     'Rubia': '#F4A460',
     'Roja': '#CD5C5C',
-    'Otra': '#9E9E9E'
+    'Michelada': '#c21212',
+    'Hidromiel': '#ecddd1'
   };
 
-  // Colores por tamaño
-  const coloresPorTamanio = {
-    350: '#4CAF50',
-    500: '#FF9800',
-    1000: '#F44336'
+  // Colores por presentación
+  const coloresPorPresentacion = {
+    'Vaso 500 ml': '#4CAF50',
+    'Botella 420 ml': '#2196F3'
   };
 
   // Función para obtener el inicio del día actual en formato datetime-local
@@ -164,7 +163,7 @@ export default function DetallesPage() {
       
       // Inicializar estructuras de datos
       const estadisticasPorTipo = {};
-      const estadisticasPorTamanio = {};
+      const estadisticasPorPresentacion = {};
       
       const matriz = {};
       const matrizPagos = {};
@@ -172,14 +171,14 @@ export default function DetallesPage() {
       tiposCerveza.forEach(tipo => {
         estadisticasPorTipo[tipo] = {
           tipo: tipo,
-          totalVasos: 0,
+          totalUnidades: 0,
           totalDinero: 0,
           color: coloresPorTipo[tipo]
         };
         matriz[tipo] = {};
-        tamanios.forEach(tamanio => {
-          matriz[tipo][tamanio.ml] = {
-            vasos: 0,
+        presentaciones.forEach(presentacion => {
+          matriz[tipo][presentacion.id] = {
+            unidades: 0,
             dinero: 0
           };
         });
@@ -189,53 +188,53 @@ export default function DetallesPage() {
         matrizPagos[metodo] = {};
         tiposCerveza.forEach(tipo => {
           matrizPagos[metodo][tipo] = {};
-          tamanios.forEach(tamanio => {
-            matrizPagos[metodo][tipo][tamanio.ml] = {
-              vasos: 0,
+          presentaciones.forEach(presentacion => {
+            matrizPagos[metodo][tipo][presentacion.id] = {
+              unidades: 0,
               dinero: 0
             };
           });
         });
       });
       
-      tamanios.forEach(tamanio => {
-        estadisticasPorTamanio[tamanio.ml] = {
-          tamanio: tamanio.ml,
-          nombre: tamanio.nombre,
-          precioUnitario: tamanio.precio,
-          totalVasos: 0,
+      presentaciones.forEach(presentacion => {
+        estadisticasPorPresentacion[presentacion.id] = {
+          presentacion: presentacion.id,
+          nombre: presentacion.nombre,
+          precioUnitario: presentacion.precio,
+          totalUnidades: 0,
           totalDinero: 0,
-          color: coloresPorTamanio[tamanio.ml]
+          color: coloresPorPresentacion[presentacion.id]
         };
       });
       
       let totalGeneral = 0;
-      let totalVasos = 0;
+      let totalUnidades = 0;
       let totalEfectivo = 0;
       let totalTransferencia = 0;
       
       data.forEach(venta => {
         const tipo = venta.tipo_cerveza;
         const cantidad = venta.cantidad;
-        const tamanio = venta.cantidad_vaso;
+        const presentacion = venta.presentacion;
         const metodo = venta.metodo_pago;
         const total = venta.total || (venta.cantidad * venta.precio_unitario);
         
-        if (matriz[tipo] && matriz[tipo][tamanio]) {
-          matriz[tipo][tamanio].vasos += cantidad;
-          matriz[tipo][tamanio].dinero += total;
-          estadisticasPorTipo[tipo].totalVasos += cantidad;
+        if (matriz[tipo] && matriz[tipo][presentacion]) {
+          matriz[tipo][presentacion].unidades += cantidad;
+          matriz[tipo][presentacion].dinero += total;
+          estadisticasPorTipo[tipo].totalUnidades += cantidad;
           estadisticasPorTipo[tipo].totalDinero += total;
         }
         
-        if (matrizPagos[metodo] && matrizPagos[metodo][tipo] && matrizPagos[metodo][tipo][tamanio]) {
-          matrizPagos[metodo][tipo][tamanio].vasos += cantidad;
-          matrizPagos[metodo][tipo][tamanio].dinero += total;
+        if (matrizPagos[metodo] && matrizPagos[metodo][tipo] && matrizPagos[metodo][tipo][presentacion]) {
+          matrizPagos[metodo][tipo][presentacion].unidades += cantidad;
+          matrizPagos[metodo][tipo][presentacion].dinero += total;
         }
         
-        if (estadisticasPorTamanio[tamanio]) {
-          estadisticasPorTamanio[tamanio].totalVasos += cantidad;
-          estadisticasPorTamanio[tamanio].totalDinero += total;
+        if (estadisticasPorPresentacion[presentacion]) {
+          estadisticasPorPresentacion[presentacion].totalUnidades += cantidad;
+          estadisticasPorPresentacion[presentacion].totalDinero += total;
         }
         
         if (metodo === 'efectivo') {
@@ -244,30 +243,30 @@ export default function DetallesPage() {
           totalTransferencia += total;
         }
         
-        totalVasos += cantidad;
+        totalUnidades += cantidad;
         totalGeneral += total;
       });
       
       const porTipo = Object.values(estadisticasPorTipo)
-        .filter(t => t.totalVasos > 0)
+        .filter(t => t.totalUnidades > 0)
         .sort((a, b) => b.totalDinero - a.totalDinero);
       
-      const porTamanio = Object.values(estadisticasPorTamanio)
-        .filter(t => t.totalVasos > 0)
-        .sort((a, b) => a.tamanio - b.tamanio);
+      const porPresentacion = Object.values(estadisticasPorPresentacion)
+        .filter(t => t.totalUnidades > 0)
+        .sort((a, b) => a.presentacion.localeCompare(b.presentacion));
       
-      const matrizTipoTamanio = tiposCerveza.map(tipo => ({
+      const matrizTipoPresentacion = tiposCerveza.map(tipo => ({
         tipo: tipo,
         color: coloresPorTipo[tipo],
-        tamanios: tamanios.map(tamanio => ({
-          ml: tamanio.ml,
-          nombre: tamanio.nombre,
-          vasos: matriz[tipo][tamanio.ml]?.vasos || 0,
-          dinero: matriz[tipo][tamanio.ml]?.dinero || 0
+        presentaciones: presentaciones.map(presentacion => ({
+          id: presentacion.id,
+          nombre: presentacion.nombre,
+          unidades: matriz[tipo][presentacion.id]?.unidades || 0,
+          dinero: matriz[tipo][presentacion.id]?.dinero || 0
         })),
-        totalVasos: estadisticasPorTipo[tipo]?.totalVasos || 0,
+        totalUnidades: estadisticasPorTipo[tipo]?.totalUnidades || 0,
         totalDinero: estadisticasPorTipo[tipo]?.totalDinero || 0
-      })).filter(tipo => tipo.totalVasos > 0);
+      })).filter(tipo => tipo.totalUnidades > 0);
       
       const matrizMetodosPago = metodosPago.map(metodo => ({
         metodo: metodo,
@@ -276,31 +275,31 @@ export default function DetallesPage() {
         tipos: tiposCerveza.map(tipo => ({
           tipo: tipo,
           color: coloresPorTipo[tipo],
-          tamanios: tamanios.map(tamanio => ({
-            ml: tamanio.ml,
-            nombre: tamanio.nombre,
-            vasos: matrizPagos[metodo][tipo][tamanio.ml]?.vasos || 0,
-            dinero: matrizPagos[metodo][tipo][tamanio.ml]?.dinero || 0
+          presentaciones: presentaciones.map(presentacion => ({
+            id: presentacion.id,
+            nombre: presentacion.nombre,
+            unidades: matrizPagos[metodo][tipo][presentacion.id]?.unidades || 0,
+            dinero: matrizPagos[metodo][tipo][presentacion.id]?.dinero || 0
           })),
-          totalVasos: tamanios.reduce((sum, t) => sum + (matrizPagos[metodo][tipo][t.ml]?.vasos || 0), 0),
-          totalDinero: tamanios.reduce((sum, t) => sum + (matrizPagos[metodo][tipo][t.ml]?.dinero || 0), 0)
-        })).filter(tipo => tipo.totalVasos > 0),
-        totalGeneralVasos: 0,
+          totalUnidades: presentaciones.reduce((sum, p) => sum + (matrizPagos[metodo][tipo][p.id]?.unidades || 0), 0),
+          totalDinero: presentaciones.reduce((sum, p) => sum + (matrizPagos[metodo][tipo][p.id]?.dinero || 0), 0)
+        })).filter(tipo => tipo.totalUnidades > 0),
+        totalGeneralUnidades: 0,
         totalGeneralDinero: 0
       }));
       
       matrizMetodosPago.forEach(metodo => {
-        metodo.totalGeneralVasos = metodo.tipos.reduce((sum, tipo) => sum + tipo.totalVasos, 0);
+        metodo.totalGeneralUnidades = metodo.tipos.reduce((sum, tipo) => sum + tipo.totalUnidades, 0);
         metodo.totalGeneralDinero = metodo.tipos.reduce((sum, tipo) => sum + tipo.totalDinero, 0);
       });
       
       setEstadisticas({
         porTipo,
-        porTamanio,
-        matrizTipoTamanio,
-        matrizMetodosPago: matrizMetodosPago.filter(m => m.totalGeneralVasos > 0),
+        porPresentacion,
+        matrizTipoPresentacion,
+        matrizMetodosPago: matrizMetodosPago.filter(m => m.totalGeneralUnidades > 0),
         totalGeneral,
-        totalVasos,
+        totalUnidades,
         totalEfectivo,
         totalTransferencia
       });
@@ -504,6 +503,13 @@ export default function DetallesPage() {
           </div>
         </div>
         <div style={styles.tarjetaTotal}>
+          <div style={styles.tarjetaIcon}>🍺</div>
+          <div style={styles.tarjetaInfo}>
+            <div style={styles.tarjetaLabel}>Total Unidades Vendidas</div>
+            <div style={styles.tarjetaValor}>{estadisticas.totalUnidades} unidades</div>
+          </div>
+        </div>
+        <div style={styles.tarjetaTotal}>
           <div style={styles.tarjetaIcon}>💵</div>
           <div style={styles.tarjetaInfo}>
             <div style={styles.tarjetaLabel}>Efectivo</div>
@@ -519,19 +525,19 @@ export default function DetallesPage() {
         </div>
       </div>
 
-      {/* MATRIZ: Ventas por Tipo y Tamaño de Vaso */}
+      {/* MATRIZ: Ventas por Tipo y Presentación */}
       <div style={styles.card}>
-        <h2 style={styles.subtitle}>📊 Ventas por Tipo de Cerveza y Tamaño de Vaso</h2>
+        <h2 style={styles.subtitle}>📊 Ventas por Tipo de Cerveza y Presentación</h2>
         <div style={styles.tableContainer}>
           <table style={styles.tableMatriz}>
             <thead>
               <tr>
                 <th style={styles.thFixed}>Tipo de Cerveza</th>
-                {tamanios.map(tamanio => (
-                  <th key={tamanio.ml} style={styles.thTamanio}>
-                    <div style={{ ...styles.tamanioHeader, backgroundColor: coloresPorTamanio[tamanio.ml] }}>
-                      {tamanio.nombre}
-                      <span style={styles.tamanioPrecio}>${tamanio.precio.toFixed(2)}</span>
+                {presentaciones.map(presentacion => (
+                  <th key={presentacion.id} style={styles.thPresentacion}>
+                    <div style={{ ...styles.presentacionHeader, backgroundColor: coloresPorPresentacion[presentacion.id] }}>
+                      {presentacion.nombre}
+                      <span style={styles.presentacionPrecio}>${presentacion.precio.toFixed(2)}</span>
                     </div>
                   </th>
                 ))}
@@ -539,17 +545,17 @@ export default function DetallesPage() {
               </tr>
             </thead>
             <tbody>
-              {estadisticas.matrizTipoTamanio.map((tipo) => (
+              {estadisticas.matrizTipoPresentacion.map((tipo) => (
                 <tr key={tipo.tipo}>
                   <td style={{ ...styles.tipoCell, borderLeftColor: tipo.color }}>
                     <span style={styles.tipoNombre}>{tipo.tipo}</span>
                   </td>
-                  {tipo.tamanios.map((tamanio) => (
-                    <td key={tamanio.ml} style={styles.cellTamanio}>
-                      {tamanio.vasos > 0 ? (
+                  {tipo.presentaciones.map((presentacion) => (
+                    <td key={presentacion.id} style={styles.cellPresentacion}>
+                      {presentacion.unidades > 0 ? (
                         <div style={styles.cellContent}>
-                          <div style={styles.vasosNumber}>{tamanio.vasos} vasos</div>
-                          <div style={styles.dineroNumber}>${tamanio.dinero.toFixed(2)}</div>
+                          <div style={styles.unidadesNumber}>{presentacion.unidades} und</div>
+                          <div style={styles.dineroNumber}>${presentacion.dinero.toFixed(2)}</div>
                         </div>
                       ) : (
                         <div style={styles.cellEmpty}>—</div>
@@ -558,15 +564,15 @@ export default function DetallesPage() {
                   ))}
                   <td style={styles.cellTotalTipo}>
                     <div style={styles.totalTipoContent}>
-                      <div style={styles.totalVasos}>{tipo.totalVasos} vasos</div>
+                      <div style={styles.totalUnidades}>{tipo.totalUnidades} und</div>
                       <div style={styles.totalDinero}>${tipo.totalDinero.toFixed(2)}</div>
                     </div>
                   </td>
                 </tr>
               ))}
-              {estadisticas.matrizTipoTamanio.length === 0 && (
+              {estadisticas.matrizTipoPresentacion.length === 0 && (
                 <tr>
-                  <td colSpan={tamanios.length + 2} style={styles.noData}>
+                  <td colSpan={presentaciones.length + 2} style={styles.noData}>
                     No hay datos disponibles
                   </td>
                 </tr>
@@ -574,18 +580,18 @@ export default function DetallesPage() {
             </tbody>
             <tfoot>
               <tr style={styles.footerRow}>
-                <td style={styles.footerCell}>Total por Tamaño</td>
-                {estadisticas.porTamanio.map((tamanio) => (
-                  <td key={tamanio.tamanio} style={styles.footerCell}>
+                <td style={styles.footerCell}>Total por Presentación</td>
+                {estadisticas.porPresentacion.map((presentacion) => (
+                  <td key={presentacion.presentacion} style={styles.footerCell}>
                     <div style={styles.cellContent}>
-                      <div style={styles.vasosNumber}>{tamanio.totalVasos} vasos</div>
-                      <div style={styles.dineroNumber}>${tamanio.totalDinero.toFixed(2)}</div>
+                      <div style={styles.unidadesNumber}>{presentacion.totalUnidades} und</div>
+                      <div style={styles.dineroNumber}>${presentacion.totalDinero.toFixed(2)}</div>
                     </div>
                   </td>
                 ))}
                 <td style={styles.footerTotalCell}>
                   <div style={styles.totalGeneralContent}>
-                    <div>{estadisticas.totalVasos} vasos</div>
+                    <div>{estadisticas.totalUnidades} und</div>
                     <div>${estadisticas.totalGeneral.toFixed(2)}</div>
                   </div>
                 </td>
@@ -609,10 +615,10 @@ export default function DetallesPage() {
                 <thead>
                   <tr>
                     <th style={styles.thFixed}>Tipo de Cerveza</th>
-                    {tamanios.map(tamanio => (
-                      <th key={tamanio.ml} style={styles.thTamanio}>
-                        <div style={{ ...styles.tamanioHeaderSmall, backgroundColor: coloresPorTamanio[tamanio.ml] }}>
-                          {tamanio.nombre}
+                    {presentaciones.map(presentacion => (
+                      <th key={presentacion.id} style={styles.thPresentacion}>
+                        <div style={{ ...styles.presentacionHeaderSmall, backgroundColor: coloresPorPresentacion[presentacion.id] }}>
+                          {presentacion.nombre}
                         </div>
                       </th>
                     ))}
@@ -625,12 +631,12 @@ export default function DetallesPage() {
                       <td style={{ ...styles.tipoCell, borderLeftColor: tipo.color }}>
                         <span style={styles.tipoNombre}>{tipo.tipo}</span>
                       </td>
-                      {tipo.tamanios.map((tamanio) => (
-                        <td key={tamanio.ml} style={styles.cellTamanio}>
-                          {tamanio.vasos > 0 ? (
+                      {tipo.presentaciones.map((presentacion) => (
+                        <td key={presentacion.id} style={styles.cellPresentacion}>
+                          {presentacion.unidades > 0 ? (
                             <div style={styles.cellContent}>
-                              <div style={styles.vasosNumber}>{tamanio.vasos} vasos</div>
-                              <div style={styles.dineroNumber}>${tamanio.dinero.toFixed(2)}</div>
+                              <div style={styles.unidadesNumber}>{presentacion.unidades} und</div>
+                              <div style={styles.dineroNumber}>${presentacion.dinero.toFixed(2)}</div>
                             </div>
                           ) : (
                             <div style={styles.cellEmpty}>—</div>
@@ -639,7 +645,7 @@ export default function DetallesPage() {
                       ))}
                       <td style={styles.cellTotalTipo}>
                         <div style={styles.totalTipoContent}>
-                          <div style={styles.totalVasos}>{tipo.totalVasos} vasos</div>
+                          <div style={styles.totalUnidades}>{tipo.totalUnidades} und</div>
                           <div style={styles.totalDinero}>${tipo.totalDinero.toFixed(2)}</div>
                         </div>
                       </td>
@@ -647,7 +653,7 @@ export default function DetallesPage() {
                   ))}
                   {metodo.tipos.length === 0 && (
                     <tr>
-                      <td colSpan={tamanios.length + 2} style={styles.noData}>
+                      <td colSpan={presentaciones.length + 2} style={styles.noData}>
                         No hay ventas con este método
                       </td>
                     </tr>
@@ -656,21 +662,21 @@ export default function DetallesPage() {
                 <tfoot>
                   <tr style={styles.footerRow}>
                     <td style={styles.footerCell}>Total {metodo.nombre}</td>
-                    {tamanios.map(tamanio => {
-                      const totalTamanio = metodo.tipos.reduce((sum, tipo) => {
-                        const t = tipo.tamanios.find(t => t.ml === tamanio.ml);
-                        return sum + (t?.dinero || 0);
+                    {presentaciones.map(presentacion => {
+                      const totalPresentacion = metodo.tipos.reduce((sum, tipo) => {
+                        const p = tipo.presentaciones.find(t => t.id === presentacion.id);
+                        return sum + (p?.dinero || 0);
                       }, 0);
-                      const totalVasosTamanio = metodo.tipos.reduce((sum, tipo) => {
-                        const t = tipo.tamanios.find(t => t.ml === tamanio.ml);
-                        return sum + (t?.vasos || 0);
+                      const totalUnidadesPresentacion = metodo.tipos.reduce((sum, tipo) => {
+                        const p = tipo.presentaciones.find(t => t.id === presentacion.id);
+                        return sum + (p?.unidades || 0);
                       }, 0);
                       return (
-                        <td key={tamanio.ml} style={styles.footerCell}>
-                          {totalVasosTamanio > 0 ? (
+                        <td key={presentacion.id} style={styles.footerCell}>
+                          {totalUnidadesPresentacion > 0 ? (
                             <div style={styles.cellContent}>
-                              <div style={styles.vasosNumber}>{totalVasosTamanio} vasos</div>
-                              <div style={styles.dineroNumber}>${totalTamanio.toFixed(2)}</div>
+                              <div style={styles.unidadesNumber}>{totalUnidadesPresentacion} und</div>
+                              <div style={styles.dineroNumber}>${totalPresentacion.toFixed(2)}</div>
                             </div>
                           ) : (
                             <div style={styles.cellEmpty}>—</div>
@@ -680,7 +686,7 @@ export default function DetallesPage() {
                     })}
                     <td style={styles.footerTotalCell}>
                       <div style={styles.totalGeneralContent}>
-                        <div>{metodo.totalGeneralVasos} vasos</div>
+                        <div>{metodo.totalGeneralUnidades} und</div>
                         <div>${metodo.totalGeneralDinero.toFixed(2)}</div>
                       </div>
                     </td>
@@ -717,7 +723,7 @@ export default function DetallesPage() {
                 <th>Fecha</th>
                 <th>Vendedor</th>
                 <th>Tipo</th>
-                <th>Tamaño</th>
+                <th>Presentación</th>
                 <th>Cantidad</th>
                 <th>Precio Unit.</th>
                 <th>Total</th>
@@ -736,7 +742,7 @@ export default function DetallesPage() {
                     </span>
                   </td>
                   <td>{venta.tipo_cerveza}</td>
-                  <td>{venta.cantidad_vaso} ml</td>
+                  <td>{venta.presentacion || 'N/A'}</td>
                   <td>{venta.cantidad}</td>
                   <td>${venta.precio_unitario.toFixed(2)}</td>
                   <td style={styles.dineroCell}>${(venta.total || venta.cantidad * venta.precio_unitario).toFixed(2)}</td>
@@ -807,7 +813,7 @@ export default function DetallesPage() {
               <div style={styles.modalInfo}>
                 <p><strong>📅 Fecha:</strong> {ventaSeleccionada && formatearFecha(ventaSeleccionada.fecha)}</p>
                 <p><strong>👤 Vendedor:</strong> {ventaSeleccionada?.vendedor_nombre || 'N/A'}</p>
-                <p><strong>🍺 Producto:</strong> {ventaSeleccionada?.tipo_cerveza} - {ventaSeleccionada?.cantidad_vaso} ml</p>
+                <p><strong>🍺 Producto:</strong> {ventaSeleccionada?.tipo_cerveza} - {ventaSeleccionada?.presentacion || 'N/A'}</p>
                 <p><strong>💰 Total:</strong> ${ventaSeleccionada && (ventaSeleccionada.total || ventaSeleccionada.cantidad * ventaSeleccionada.precio_unitario).toFixed(2)}</p>
               </div>
               <label style={styles.modalLabel}>Comentario:</label>
@@ -987,7 +993,7 @@ const styles = {
     borderBottom: '2px solid #dee2e6',
     minWidth: '120px'
   },
-  thTamanio: {
+  thPresentacion: {
     backgroundColor: '#f8f9fa',
     padding: '10px',
     textAlign: 'center',
@@ -1010,7 +1016,7 @@ const styles = {
     fontWeight: 'bold',
     fontSize: '16px'
   },
-  cellTamanio: {
+  cellPresentacion: {
     textAlign: 'center',
     padding: '12px',
     borderBottom: '1px solid #eee',
@@ -1022,7 +1028,7 @@ const styles = {
     alignItems: 'center',
     gap: '4px'
   },
-  vasosNumber: {
+  unidadesNumber: {
     fontSize: '16px',
     fontWeight: 'bold',
     color: '#333'
@@ -1048,7 +1054,7 @@ const styles = {
     flexDirection: 'column',
     gap: '4px'
   },
-  totalVasos: {
+  totalUnidades: {
     fontSize: '14px',
     color: '#666'
   },
@@ -1078,21 +1084,21 @@ const styles = {
     gap: '4px',
     fontWeight: 'bold'
   },
-  tamanioHeader: {
+  presentacionHeader: {
     padding: '8px',
     borderRadius: '8px',
     color: 'white',
     fontSize: '14px',
     fontWeight: 'bold'
   },
-  tamanioHeaderSmall: {
+  presentacionHeaderSmall: {
     padding: '6px',
     borderRadius: '6px',
     color: 'white',
     fontSize: '12px',
     fontWeight: 'bold'
   },
-  tamanioPrecio: {
+  presentacionPrecio: {
     fontSize: '12px',
     opacity: 0.9,
     display: 'block'
@@ -1224,7 +1230,6 @@ const styles = {
     fontSize: '12px',
     display: 'inline-block'
   },
-  // Estilos del modal
   modalOverlay: {
     position: 'fixed',
     top: 0,
